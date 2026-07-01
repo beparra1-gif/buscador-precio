@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Consulta Integrado</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { background-color: #f0f2f5; padding: 20px; display: flex; justify-content: center; margin: 0; }
+        .card { width: 100%; max-width: 450px; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); margin-top: 30px; position: relative;}
+        h2 { text-align: center; color: #333; margin-top: 0; margin-bottom: 20px; font-size: 1.4em; }
+        
+        input { width: 100%; padding: 14px; margin-bottom: 15px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; text-align: center; }
+        input:focus { border-color: #000; outline: none; }
+        .btn-primary { width: 100%; padding: 14px; background-color: #000; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
+        .btn-primary:active { background-color: #333; }
+        
+        .btn-siguiente { width: 100%; padding: 14px; background-color: #d90429; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; margin-bottom: 12px; }
+        .btn-volver { width: 70%; padding: 10px; background-color: #d5d5d5; color: #000; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; display: block; margin: 0 auto; }
+        
+        .info-box { background: #f8f9fa; border: 1px solid #eaeaea; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: left; }
+        .info-item { margin-bottom: 10px; font-size: 15px; color: #444; }
+        .info-label { font-weight: bold; color: #111; }
+        
+        .loader { display: none; text-align: center; font-weight: bold; color: #666; margin: 15px 0; }
+        .view { display: none; }
+        .view.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .product-img { width: 100%; max-width: 150px; height: 150px; background: #eee; margin: 0 auto 15px auto; display: flex; align-items: center; justify-content: center; border-radius: 8px; color: #999; font-size: 12px; border: 1px dashed #ccc; overflow: hidden; }
+        .price-sir { color: #666; font-size: 1.1em; text-decoration: line-through; }
+        .price-actual { color: #d90429; font-weight: bold; font-size: 1.8em; margin: 5px 0; }
+        .discount-badge { background: #d90429; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; display: inline-block; margin-bottom: 10px; }
+        
+        .toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from { bottom: 0; opacity: 0; } to { bottom: 30px; opacity: 1; } }
+        @keyframes fadeout { from { bottom: 30px; opacity: 1; } to { bottom: 0; opacity: 0; } }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div id="view-1" class="view active">
+        <h2>Buscador de Tienda</h2>
+        <input type="text" id="edpInput" placeholder="Ingrese código EDP de la tienda" autofocus onfocus="this.select()">
+        <button class="btn-primary" onclick="procesarEDP()">Buscar Tienda</button>
+
+        <div id="edp-result-container" style="display: none; margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
+            <div class="info-box">
+                <div class="info-item"><span class="info-label">EDP:</span> <span id="outGlosa">---</span></div>
+                <div class="info-item"><span class="info-label">Cadena:</span> <span id="outCadena">---</span></div>
+                <div class="info-item"><span class="info-label">Zona:</span> <span id="outZona">---</span></div>
+                <div class="info-item"><span class="info-label">Distrito:</span> <span id="outDistrito">---</span></div>
+            </div>
+            <button class="btn-siguiente" onclick="irAPantalla2()">SIGUIENTE</button>
+            <button class="btn-volver" onclick="limpiarEDP()">VOLVER</button>
+        </div>
+    </div>
+
+    <div id="view-2" class="view">
+        <h2>Consulta de Precios</h2>
+        <div style="margin-bottom: 15px; font-size: 14px; color: #666; text-align: center;">
+            Tienda Activa: <strong id="lblTiendaActiva">---</strong>
+        </div>
+        <input type="text" id="codigoInput" placeholder="Escriba o escanee el código" onfocus="this.select()">
+        <button class="btn-primary" onclick="procesarCodigo()">Consultar Producto</button>
+        <br><br>
+        <button class="btn-volver" onclick="cambiarVista('view-1')">Atrás</button>
+    </div>
+
+    <div id="view-3" class="view">
+        <h2>Detalle del Producto</h2>
+        
+        <div class="product-img" id="imgContenedor">📸 Foto por definir</div>
+        
+        <div class="info-box" style="text-align: center;">
+            <div id="outDescuento" class="discount-badge">-%</div>
+            <div class="info-item" style="font-size: 1.1em;"><span class="info-label">Marca:</span> <span id="outMarca">---</span></div>
+            <div class="info-item"><span class="info-label">Género:</span> <span id="outGenero">---</span></div>
+            <div class="info-item"><span class="info-label">Proyecto:</span> <span id="outProyecto">---</span></div>
+            <div style="margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px;">
+                <div class="price-sir">PRECIO ANTES: <span id="outPrecioSir">---</span></div>
+                <div id="outNuevoPrecio" class="price-actual">---</div>
+            </div>
+            <div class="info-item"><span class="info-label">Stock Actual:</span> <span id="outStock" style="font-weight: bold;">---</span></div>
+        </div>
+        <button class="btn-primary" onclick="cambiarVista('view-2')">Nueva Consulta</button>
+    </div>
+
+    <div id="loading" class="loader">Buscando en la base de datos...</div>
+</div>
+
+<div id="toast" class="toast">Mensaje</div>
+
+<script>
+    // 🚨 REEMPLAZA ESTO CON LA URL DE TU GOOGLE APPS SCRIPT
+    const urlAPI = "https://script.google.com/macros/s/AKfycby6lSF6gjJWTF8UVqFW16vARSORJH-kVPWo4z8VbQnPM7pDAir3PxvtP62-Oylfbg8U/exec";
+
+    let edpActual = "";
+    let glosaActual = "";
+
+    function mostrarAlerta(mensaje) {
+        const toast = document.getElementById("toast");
+        toast.innerText = mensaje;
+        toast.className = "toast show";
+        setTimeout(function(){ toast.className = toast.className.replace("show", ""); }, 3000);
+    }
+
+    const formatearMoneda = (valor) => {
+        if (!valor) return '$0';
+        const numero = parseInt(valor.toString().replace(/\D/g, ""), 10);
+        if (isNaN(numero)) return valor; 
+        return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(numero);
+    };
+
+    function cambiarVista(viewId) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        
+        if(viewId === 'view-1') document.getElementById('edpInput').focus();
+        if(viewId === 'view-2') {
+            document.getElementById('lblTiendaActiva').innerText = edpActual + " - " + glosaActual;
+            document.getElementById('codigoInput').value = "";
+            document.getElementById('codigoInput').focus();
+        }
+    }
+
+    async function procesarEDP() {
+        const edp = document.getElementById('edpInput').value.trim();
+        if(!edp) return mostrarAlerta("Por favor, ingrese un EDP");
+        
+        document.getElementById('loading').style.display = "block";
+        document.getElementById('edp-result-container').style.display = "none";
+        
+        try {
+            const res = await fetch(`${urlAPI}?action=buscarEDP&edp=${edp}`);
+            const data = await res.json();
+            document.getElementById('loading').style.display = "none";
+            
+            if(data.encontrado) {
+                edpActual = edp; 
+                glosaActual = data.glosaTienda; 
+                
+                document.getElementById('outGlosa').innerText = data.glosaTienda;
+                document.getElementById('outCadena').innerText = data.cadena;
+                document.getElementById('outZona').innerText = data.zona;
+                document.getElementById('outDistrito').innerText = data.distrito;
+                document.getElementById('edp-result-container').style.display = "block";
+            } else {
+                mostrarAlerta("Código EDP no registrado en las tiendas.");
+            }
+        } catch (error) {
+            document.getElementById('loading').style.display = "none";
+            mostrarAlerta("Error al conectar con la base de datos de tiendas.");
+        }
+    }
+
+    function limpiarEDP() {
+        document.getElementById('edpInput').value = "";
+        edpActual = ""; 
+        glosaActual = "";
+        document.getElementById('edp-result-container').style.display = "none";
+        document.getElementById('edpInput').focus();
+    }
+
+    function irAPantalla2() {
+        cambiarVista('view-2');
+    }
+
+    async function procesarCodigo() {
+        const codigo = document.getElementById('codigoInput').value.trim();
+        if(!codigo) return mostrarAlerta("Por favor, ingrese o escanee un código");
+        
+        document.getElementById('loading').style.display = "block";
+        
+        try {
+            const res = await fetch(`${urlAPI}?action=buscarCodigo&codigo=${codigo}&edp=${edpActual}`);
+            const data = await res.json();
+            document.getElementById('loading').style.display = "none";
+            
+            if(data.encontrado) {
+                document.getElementById('outMarca').innerText = data.marca || '--';
+                document.getElementById('outGenero').innerText = data.genero || '--';
+                document.getElementById('outProyecto').innerText = (data.proyecto && data.proyecto.toString().trim() !== "") ? data.proyecto : '--';
+                
+                document.getElementById('outPrecioSir').innerText = formatearMoneda(data.precioSir);
+                document.getElementById('outNuevoPrecio').innerText = formatearMoneda(data.nuevoPrecio);
+                
+                let descValue = data.descuento ? data.descuento.toString().trim().replace(',', '.') : '0';
+                let numDesc = parseFloat(descValue.replace('%', ''));
+                if (!isNaN(numDesc) && numDesc !== 0) {
+                    if (numDesc > 0 && numDesc <= 1) numDesc = Math.round(numDesc * 100);
+                    document.getElementById('outDescuento').innerText = `DESCUENTO -${numDesc}%`;
+                    document.getElementById('outDescuento').style.display = "inline-block";
+                } else {
+                    document.getElementById('outDescuento').style.display = "none";
+                }
+                
+                const stockElemento = document.getElementById('outStock');
+                if (parseInt(data.stock, 10) === 0 || data.stock === "0") {
+                    stockElemento.style.color = "#d90429"; 
+                    stockElemento.innerText = "SIN STOCK";
+                } else {
+                    stockElemento.style.color = "#111111"; 
+                    stockElemento.innerText = data.stock !== undefined ? data.stock : '0';
+                }
+
+                const imgContainer = document.getElementById('imgContenedor');
+                imgContainer.innerHTML = ''; 
+                
+                // RUTA A TU CARPETA LOCAL EN GITHUB
+                const urlFoto = `./fotos/${codigo}.jpg`; 
+                const urlBusquedaBata = `https://www.bata.com/cl/search?q=${codigo}`;
+
+                const imgElement = document.createElement('img');
+                imgElement.src = urlFoto;
+                imgElement.style.width = '100%';
+                imgElement.style.height = '100%';
+                imgElement.style.objectFit = 'contain';
+                
+                // Fallback dinámico si la foto falla o no está en la carpeta
+                imgElement.onerror = function() {
+                    imgContainer.style.background = '#f8f9fa';
+                    imgContainer.style.border = '1px dashed #ccc';
+                    imgContainer.innerHTML = `
+                        <a href="${urlBusquedaBata}" target="_blank" style="color:#666; text-decoration:none; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; padding: 10px;">
+                            <span style="font-size:28px;">📸</span>
+                            <span style="margin-top:5px; font-weight:bold;">Sin Foto Interna</span>
+                            <span style="color:#d90429; font-size:13px; text-decoration:underline; margin-top:5px; text-align: center;">Toca aquí para ver el producto en Bata.cl</span>
+                        </a>
+                    `;
+                };
+
+                imgContainer.appendChild(imgElement);
+                imgContainer.style.background = "transparent";
+                imgContainer.style.border = "none";
+                
+                cambiarVista('view-3');
+            } else {
+                mostrarAlerta("El código de producto no existe en esta tienda (EDP).");
+            }
+        } catch (error) {
+            document.getElementById('loading').style.display = "none";
+            mostrarAlerta("Error al conectar con la base de datos de precios.");
+        }
+    }
+</script>
+</body>
+</html>
