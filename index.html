@@ -4,46 +4,52 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Consulta Integrado</title>
+    
+    <!-- Librería para el Escáner de Código de Barras -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
     <style>
         * { box-sizing: border-box; font-family: Arial, sans-serif; }
-        body { background-color: #f0f2f5; padding: 20px; display: flex; justify-content: center; margin: 0; }
-        .card { width: 100%; max-width: 450px; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); margin-top: 30px; position: relative;}
+        body { background-color: #f0f2f5; padding: 20px; display: flex; justify-content: center; }
+        .card { width: 100%; max-width: 450px; background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); margin-top: 30px; position: relative; }
         h2 { text-align: center; color: #333; margin-top: 0; margin-bottom: 20px; font-size: 1.4em; }
         
         input { width: 100%; padding: 14px; margin-bottom: 15px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; text-align: center; }
         input:focus { border-color: #000; outline: none; }
-        .btn-primary { width: 100%; padding: 14px; background-color: #000; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
-        .btn-primary:active { background-color: #333; }
+        .btn-primary { width: 100%; padding: 14px; background-color: #000; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; }
         
         .btn-siguiente { width: 100%; padding: 14px; background-color: #d90429; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; margin-bottom: 12px; }
         .btn-volver { width: 70%; padding: 10px; background-color: #d5d5d5; color: #000; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; display: block; margin: 0 auto; }
+        .btn-scan { background-color: #004b23; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 10px; }
         
         .info-box { background: #f8f9fa; border: 1px solid #eaeaea; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: left; }
         .info-item { margin-bottom: 10px; font-size: 15px; color: #444; }
         .info-label { font-weight: bold; color: #111; }
         
         .loader { display: none; text-align: center; font-weight: bold; color: #666; margin: 15px 0; }
+        
         .view { display: none; }
-        .view.active { display: block; animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .view.active { display: block; }
 
         .product-img { width: 100%; max-width: 150px; height: 150px; background: #eee; margin: 0 auto 15px auto; display: flex; align-items: center; justify-content: center; border-radius: 8px; color: #999; font-size: 12px; border: 1px dashed #ccc; overflow: hidden; }
         .price-sir { color: #666; font-size: 1.1em; text-decoration: line-through; }
         .price-actual { color: #d90429; font-weight: bold; font-size: 1.8em; margin: 5px 0; }
         .discount-badge { background: #d90429; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9em; display: inline-block; margin-bottom: 10px; }
-        
-        .toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        .toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
-        @keyframes fadein { from { bottom: 0; opacity: 0; } to { bottom: 30px; opacity: 1; } }
-        @keyframes fadeout { from { bottom: 30px; opacity: 1; } to { bottom: 0; opacity: 0; } }
+
+        /* Estilos del Modal del Escáner */
+        #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        #reader { width: 100%; max-width: 400px; background: white; border-radius: 8px; overflow: hidden; }
+        .btn-cerrar-scanner { margin-top: 20px; padding: 12px 25px; background: #d90429; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div class="card">
+    
+    <!-- PANTALLA 1: BUSCADOR EDP -->
     <div id="view-1" class="view active">
         <h2>Buscador de Tienda</h2>
-        <input type="text" id="edpInput" placeholder="Ingrese c贸digo EDP de la tienda" autofocus onfocus="this.select()">
+        <input type="text" id="edpInput" placeholder="Ingrese código EDP de la tienda" autofocus onfocus="this.select()">
         <button class="btn-primary" onclick="procesarEDP()">Buscar Tienda</button>
 
         <div id="edp-result-container" style="display: none; margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
@@ -58,26 +64,34 @@
         </div>
     </div>
 
+    <!-- PANTALLA 2: BUSCADOR DE CóDIGOS Y ESCáNER -->
     <div id="view-2" class="view">
         <h2>Consulta de Precios</h2>
         <div style="margin-bottom: 15px; font-size: 14px; color: #666; text-align: center;">
             Tienda Activa: <strong id="lblTiendaActiva">---</strong>
         </div>
-        <input type="text" id="codigoInput" placeholder="Escriba o escanee el c贸digo" onfocus="this.select()">
+        
+        <button class="btn-primary btn-scan" onclick="abrirScanner()">?? Escanear Código de Barras</button>
+        
+        <div style="text-align: center; margin-bottom: 15px; font-size: 14px; color: #999;">- O ingrese manual -</div>
+        
+        <input type="text" id="codigoInput" placeholder="Escriba o escanee con pistola" onfocus="this.select()">
         <button class="btn-primary" onclick="procesarCodigo()">Consultar Producto</button>
         <br><br>
-        <button class="btn-volver" onclick="cambiarVista('view-1')">Atr谩s</button>
+        <button class="btn-volver" onclick="cambiarVista('view-1')">Atrás</button>
     </div>
 
+    <!-- PANTALLA 3: RESULTADO DE PRODUCTO -->
     <div id="view-3" class="view">
         <h2>Detalle del Producto</h2>
         
-        <div class="product-img" id="imgContenedor">馃摳 Foto por definir</div>
+        <!-- Contenedor dinámico de la foto -->
+        <div class="product-img" id="imgContenedor">?? Foto por definir</div>
         
         <div class="info-box" style="text-align: center;">
             <div id="outDescuento" class="discount-badge">-%</div>
             <div class="info-item" style="font-size: 1.1em;"><span class="info-label">Marca:</span> <span id="outMarca">---</span></div>
-            <div class="info-item"><span class="info-label">G茅nero:</span> <span id="outGenero">---</span></div>
+            <div class="info-item"><span class="info-label">Género:</span> <span id="outGenero">---</span></div>
             <div class="info-item"><span class="info-label">Proyecto:</span> <span id="outProyecto">---</span></div>
             <div style="margin: 15px 0; border-top: 1px solid #eee; padding-top: 10px;">
                 <div class="price-sir">PRECIO ANTES: <span id="outPrecioSir">---</span></div>
@@ -89,23 +103,23 @@
     </div>
 
     <div id="loading" class="loader">Buscando en la base de datos...</div>
+
 </div>
 
-<div id="toast" class="toast">Mensaje</div>
+<!-- MODAL DEL ESCáNER DE CáMARA -->
+<div id="scanner-modal">
+    <h3 style="color:white; margin-bottom: 20px;">Enfoca el Código de Barras</h3>
+    <div id="reader"></div>
+    <button class="btn-cerrar-scanner" onclick="cerrarScanner()">Cancelar Escaneo</button>
+</div>
 
 <script>
-    // 馃毃 REEMPLAZA ESTO CON LA URL DE TU GOOGLE APPS SCRIPT
+    // ?? REEMPLAZA ESTA URL POR TU URL DE GOOGLE APPS SCRIPT AQUí:
     const urlAPI = "https://script.google.com/macros/s/AKfycby6lSF6gjJWTF8UVqFW16vARSORJH-kVPWo4z8VbQnPM7pDAir3PxvtP62-Oylfbg8U/exec";
 
     let edpActual = "";
     let glosaActual = "";
-
-    function mostrarAlerta(mensaje) {
-        const toast = document.getElementById("toast");
-        toast.innerText = mensaje;
-        toast.className = "toast show";
-        setTimeout(function(){ toast.className = toast.className.replace("show", ""); }, 3000);
-    }
+    let html5QrcodeScanner = null;
 
     const formatearMoneda = (valor) => {
         if (!valor) return '$0';
@@ -126,9 +140,42 @@
         }
     }
 
+    // ==========================================
+    // LóGICA DEL ESCáNER DE CáMARA
+    // ==========================================
+    function abrirScanner() {
+        document.getElementById('scanner-modal').style.display = 'flex';
+        
+        if (!html5QrcodeScanner) {
+            html5QrcodeScanner = new Html5Qrcode("reader");
+        }
+        
+        const config = { fps: 10, qrbox: { width: 300, height: 150 } };
+        
+        html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
+        .catch(err => {
+            alert("Error al abrir la cámara. Asegúrate de dar permisos en el navegador.");
+            cerrarScanner();
+        });
+    }
+
+    function cerrarScanner() {
+        document.getElementById('scanner-modal').style.display = 'none';
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.stop().catch(err => console.log(err));
+        }
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+        cerrarScanner();
+        document.getElementById('codigoInput').value = decodedText;
+        procesarCodigo(); // Busca automáticamente
+    }
+    // ==========================================
+
     async function procesarEDP() {
         const edp = document.getElementById('edpInput').value.trim();
-        if(!edp) return mostrarAlerta("Por favor, ingrese un EDP");
+        if(!edp) return alert("Por favor, ingrese un EDP");
         
         document.getElementById('loading').style.display = "block";
         document.getElementById('edp-result-container').style.display = "none";
@@ -148,11 +195,11 @@
                 document.getElementById('outDistrito').innerText = data.distrito;
                 document.getElementById('edp-result-container').style.display = "block";
             } else {
-                mostrarAlerta("C贸digo EDP no registrado en las tiendas.");
+                alert("Código EDP no registrado en las tiendas.");
             }
         } catch (error) {
             document.getElementById('loading').style.display = "none";
-            mostrarAlerta("Error al conectar con la base de datos de tiendas.");
+            alert("Error al conectar con la base de datos de tiendas.");
         }
     }
 
@@ -169,8 +216,15 @@
     }
 
     async function procesarCodigo() {
-        const codigo = document.getElementById('codigoInput').value.trim();
-        if(!codigo) return mostrarAlerta("Por favor, ingrese o escanee un c贸digo");
+        let codigo = document.getElementById('codigoInput').value.trim();
+        if(!codigo) return alert("Por favor, ingrese o escanee un código");
+        
+        // ?? LóGICA EAN-13: Cortar del dígito 2 al 8
+        if (codigo.length === 13 && !isNaN(codigo)) {
+            // El primer dígito es el índice 0, por lo que el dígito 2 al 8 son los índices del 1 al 8
+            codigo = codigo.substring(1, 8);
+            document.getElementById('codigoInput').value = codigo; // Muestra el código cortado
+        }
         
         document.getElementById('loading').style.display = "block";
         
@@ -206,10 +260,13 @@
                     stockElemento.innerText = data.stock !== undefined ? data.stock : '0';
                 }
 
+                // =========================================================
+                // LóGICA DE FOTOS LOCALES (EN GITHUB) + RESPALDO BATA.CL
+                // =========================================================
                 const imgContainer = document.getElementById('imgContenedor');
                 imgContainer.innerHTML = ''; 
                 
-                // RUTA A TU CARPETA LOCAL EN GITHUB
+                // Busca la foto en la carpeta que subas a GitHub ("fotos")
                 const urlFoto = `./fotos/${codigo}.jpg`; 
                 const urlBusquedaBata = `https://www.bata.com/cl/search?q=${codigo}`;
 
@@ -219,15 +276,15 @@
                 imgElement.style.height = '100%';
                 imgElement.style.objectFit = 'contain';
                 
-                // Fallback din谩mico si la foto falla o no est谩 en la carpeta
+                // Si la foto no existe localmente, crea el enlace a Bata.cl
                 imgElement.onerror = function() {
                     imgContainer.style.background = '#f8f9fa';
                     imgContainer.style.border = '1px dashed #ccc';
                     imgContainer.innerHTML = `
                         <a href="${urlBusquedaBata}" target="_blank" style="color:#666; text-decoration:none; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; padding: 10px;">
-                            <span style="font-size:28px;">馃摳</span>
+                            <span style="font-size:28px;">??</span>
                             <span style="margin-top:5px; font-weight:bold;">Sin Foto Interna</span>
-                            <span style="color:#d90429; font-size:13px; text-decoration:underline; margin-top:5px; text-align: center;">Toca aqu铆 para ver el producto en Bata.cl</span>
+                            <span style="color:#d90429; font-size:13px; text-decoration:underline; margin-top:5px; text-align: center;">Toca aquí para ver el producto en Bata.cl</span>
                         </a>
                     `;
                 };
@@ -235,14 +292,15 @@
                 imgContainer.appendChild(imgElement);
                 imgContainer.style.background = "transparent";
                 imgContainer.style.border = "none";
-                
+                // =========================================================
+
                 cambiarVista('view-3');
             } else {
-                mostrarAlerta("El c贸digo de producto no existe en esta tienda (EDP).");
+                alert("El código de producto no existe en esta tienda (EDP).");
             }
         } catch (error) {
             document.getElementById('loading').style.display = "none";
-            mostrarAlerta("Error al conectar con la base de datos de precios.");
+            alert("Error al conectar con la base de datos de precios.");
         }
     }
 </script>
