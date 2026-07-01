@@ -322,8 +322,11 @@
                 const imgContainer = document.getElementById('imgContenedor');
                 imgContainer.innerHTML = ''; 
                 
-                // Busca la foto en la carpeta que subas a GitHub ("fotos")
-                const urlFoto = `./fotos/${codigo}.jpg`; 
+                // Rellena con ceros a la izquierda para que siempre tenga 7 dígitos exactos
+                const codigoFoto = codigo.toString().padStart(7, '0');
+                
+                // Busca la foto en la carpeta que subas a GitHub ("fotos") usando el código de 7 dígitos
+                const urlFoto = `./fotos/${codigoFoto}.jpg`; 
                 const urlBusquedaBata = `https://www.bata.com/cl/search?q=${codigo}`;
 
                 const imgElement = document.createElement('img');
