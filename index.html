@@ -338,36 +338,7 @@
         window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
     }
 
-    // ==========================================
-    // BÚSQUEDA INDIVIDUAL (FICHA TÉCNICA)
-    // ==========================================
-    async function procesarCodigo(codDirecto = null) {
-        let codigo = codDirecto || document.getElementById('codigoInput').value.trim();
-        if(!codigo) return alert("Ingrese o escanee un código válido");
-        
-        if (codigo.length === 13 && !isNaN(codigo)) codigo = codigo.substring(1, 8);
-        codigo = codigo.padStart(7, '0');
-        if(!codDirecto) document.getElementById('codigoInput').value = codigo; 
-
-        document.getElementById('loading').style.display = "block";
-        
-        try {
-            const res = await fetch(`${urlAPI}?action=buscarCodigo&codigo=${codigo}`);
-            const data = await res.json();
-            document.getElementById('loading').style.display = "none";
-            
-            if(data.encontrado) {
-                guardarReciente(codigo); // Guardar en historial
-                
-                document.getElementById('outCodigo').innerText = data.codigo || '--';
-                document.getElementById('outMarca').innerText = data.marca || '--';
-                document.getElementById('outGenero').innerText = data.genero || '--';
-                document.getElementById('outProyecto').innerText = (data.proyecto && data.proyecto.toString().trim() !== "") ? data.proyecto : '--';
-                
-                // Guardar para WhatsApp
-                waMarca = data.marca || 'Producto';
-                waPrecioActual = formatearMoneda(data.nuevoPrecio);
-
+                // Limpiar formato descuento
                 let numDesc = 0;
                 if (data.descuento) {
                     let descValue = data.descuento.toString().trim().replace(',', '.');
@@ -379,19 +350,24 @@
                 const pContainer = document.getElementById('priceContainerDynamic');
                 pContainer.innerHTML = ''; 
                 const estatus = data.estatus || '';
+                
+                // NOVEDAD: Extraemos los 3 precios desde el inicio
+                let pInicial = formatearMoneda(data.precioInicial);
+                let pAntes = formatearMoneda(data.precioAntes);
 
+                // LÓGICA DE VISUALIZACIÓN DE PRECIOS
                 if (estatus.includes('SUBE') || estatus.includes('AUMENTA')) {
-                    waPrecioAntes = formatearMoneda(data.precioAntes);
+                    waPrecioAntes = pAntes;
                     pContainer.innerHTML = `
                         <div class="price-container">
                             <div class="price-alza-box">
                                 <div class="price-alza-item">
-                                    <span class="price-label">Precio Inicial</span>
-                                    <span style="color: #6B7280; text-decoration: line-through;">${formatearMoneda(data.precioInicial)}</span>
+                                    <span class="price-label">Full Retail</span>
+                                    <span style="color: #6B7280; text-decoration: line-through;">${pInicial}</span>
                                 </div>
                                 <div class="price-alza-item">
                                     <span class="price-label">Precio Antes</span>
-                                    <span style="font-weight: 600; color: #374151;">${waPrecioAntes}</span>
+                                    <span style="font-weight: 600; color: #374151;">${pAntes}</span>
                                 </div>
                             </div>
                             <div class="price-label" style="color: var(--accent-red); font-weight: bold;">⚠️ Novedad: Alza de Precio</div>
@@ -399,15 +375,39 @@
                         </div>
                     `;
                 } else if (estatus.includes('BAJA') || estatus.includes('DISMINUYE') || numDesc > 0) {
-                    waPrecioAntes = formatearMoneda(data.precioAntes);
+                    let htmlAntes = '';
+                    
+                    // Si el precio inicial (Full Retail) es distinto al anterior, mostramos ambos
+                    if (data.precioInicial && data.precioAntes && pInicial !== pAntes) {
+                        htmlAntes = `
+                            <div style="display: flex; justify-content: center; gap: 30px; margin-bottom: 10px;">
+                                <div>
+                                    <div class="price-label">Full Retail</div>
+                                    <div class="price-strike" style="font-size: 1.05em;">${pInicial}</div>
+                                </div>
+                                <div>
+                                    <div class="price-label">Precio Antes</div>
+                                    <div class="price-strike" style="font-size: 1.05em;">${pAntes}</div>
+                                </div>
+                            </div>
+                        `;
+                        waPrecioAntes = `${pInicial} (Retail) / ${pAntes} (Antes)`;
+                    } else {
+                        // Si son iguales, basta con mostrar el precio normal
+                        htmlAntes = `
+                            <div class="price-label">Precio Normal</div>
+                            <div class="price-strike">${pInicial}</div>
+                        `;
+                        waPrecioAntes = pInicial;
+                    }
+
                     pContainer.innerHTML = `
                         <div class="price-container">
                             <div style="text-align: center;">
                                 <div class="discount-badge">BAJA DE PRECIO -${numDesc}%</div>
                             </div>
-                            <div class="price-label">Precio Antes</div>
-                            <div class="price-strike">${waPrecioAntes}</div>
-                            <div class="price-label" style="margin-top: 10px;">Precio Actual</div>
+                            ${htmlAntes}
+                            <div class="price-label" style="margin-top: 10px;">Nuevo Precio</div>
                             <div class="price-actual">${waPrecioActual}</div>
                         </div>
                     `;
