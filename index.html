@@ -8,14 +8,20 @@
     <meta name="theme-color" content="#E20613">
     <link rel="manifest" href="./manifest.json">
     <link rel="apple-touch-icon" href="./icon.png">
+    
+    <!-- NUEVO: Fuente redonda y elegante de Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&display=swap" rel="stylesheet">
+
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
     <style>
         /* Paleta Elegante: Rojo Logo Bata y Grises */
         :root {
-            --primary: #E20613; /* Rojo vibrante exacto estilo logo Bata */
-            --primary-hover: #B9000B; /* Un tono ligeramente más oscuro al pasar el dedo */
-            --accent-red: #EF4444; /* Rojo de alerta vibrante */
+            --primary: #E20613; 
+            --primary-hover: #B9000B;
+            --accent-red: #EF4444; 
             --whatsapp: #25D366;
             --bg-body: #F3F4F6;
             --bg-card: #FFFFFF;
@@ -31,12 +37,23 @@
         .card { width: 100%; max-width: 440px; background: var(--bg-card); padding: 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); position: relative; border: 1px solid var(--border-light); margin-bottom: 80px; }
         h2 { text-align: center; color: var(--text-main); margin-top: 0; margin-bottom: 25px; font-size: 1.4em; font-weight: 600; letter-spacing: -0.5px; }
         
-        /* Buscador */
+        /* NUEVO: Estilo del Título Redondo y Elegante */
+        .title-codigo {
+            font-family: 'Nunito', sans-serif;
+            font-size: 2em;
+            font-weight: 800;
+            color: var(--text-main);
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+        
         .input-group { position: relative; width: 100%; margin-bottom: 20px; }
         .input-group svg.icon-left { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; color: var(--text-muted); cursor: pointer; transition: color 0.2s; z-index: 2; }
         .input-group svg.icon-left:hover { color: var(--primary); }
         .input-group input { width: 100%; padding: 16px 16px 16px 48px; border: 1px solid var(--border-light); border-radius: 10px; font-size: 16px; color: var(--text-main); outline: none; transition: all 0.2s ease; background-color: #F9FAFB; }
-        .input-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(153, 27, 27, 0.1); background-color: white; }
+        .input-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(226, 6, 19, 0.1); background-color: white; }
 
         .recents-container { margin-bottom: 25px; }
         .recents-title { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
@@ -45,7 +62,6 @@
         .chip-recent { background: #F3F4F6; border: 1px solid #E5E7EB; color: var(--text-main); padding: 6px 12px; border-radius: 16px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 4px; transition: background 0.2s; }
         .chip-recent:hover { background: #E5E7EB; }
 
-        /* Botones */
         .btn-primary { width: 100%; padding: 16px; background-color: var(--primary); color: white; border: none; border-radius: 10px; font-size: 15px; cursor: pointer; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
         .btn-primary:hover { background-color: var(--primary-hover); }
         .btn-primary:active { transform: scale(0.98); }
@@ -61,14 +77,12 @@
         .btn-volver:hover { color: var(--primary); }
         .menu-title { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin: 30px 0 15px 0; font-weight: 600; }
 
-        /* Ficha Técnica */
         .info-box { background: #F9FAFB; border: 1px solid var(--border-light); border-radius: 12px; padding: 18px; margin-bottom: 20px; text-align: left; }
         .info-item { margin-bottom: 12px; font-size: 14px; color: var(--text-muted); display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-light); padding-bottom: 8px; }
         .info-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
         .info-label { font-weight: 600; color: var(--text-main); }
         .product-img { width: 100%; max-width: 160px; height: 160px; background: white; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center; border-radius: 12px; color: #aaa; font-size: 12px; border: 1px solid var(--border-light); overflow: hidden; }
         
-        /* Precios en Ficha Técnica */
         .price-container { margin: 20px 0; border: 1px solid var(--border-light); border-radius: 12px; padding: 20px; text-align: center; background: white; }
         .price-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
         .price-strike { color: var(--text-light); font-size: 1.1em; text-decoration: line-through; margin-bottom: 10px; }
@@ -78,15 +92,11 @@
         .price-actual.alert-red { color: var(--accent-red); }
         .discount-badge { background: var(--primary); color: white; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.9em; display: inline-block; margin-bottom: 15px; }
 
-        /* ==================================
-           NUEVO: Filtros en la Lista
-           ================================== */
         .filters-container { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none; }
         .filters-container::-webkit-scrollbar { display: none; }
         .filter-select { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-light); background-color: #F9FAFB; color: var(--text-main); font-size: 13px; font-weight: 500; outline: none; cursor: pointer; white-space: nowrap; }
         .filter-select:focus { border-color: var(--primary); }
 
-        /* Lista y Tarjetas de Producto */
         .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .toggle-view { background: none; border: 1px solid var(--border-light); border-radius: 6px; padding: 6px 10px; cursor: pointer; color: var(--text-muted); }
         .toggle-view:hover { color: var(--primary); border-color: var(--primary); }
@@ -105,13 +115,11 @@
         
         .item-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
         
-        /* Contenedor de los 3 Precios en la Tarjeta */
         .item-prices { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
         .item-price-old { font-size: 11px; color: var(--text-light); text-decoration: line-through; display: flex; flex-direction: column; line-height: 1.2; }
         .item-price-old span { font-size: 9px; text-transform: uppercase; font-weight: 600; }
         .item-price-new { font-weight: 800; color: var(--primary); font-size: 16px; margin-left: auto; }
 
-        /* Vista Cuadrícula */
         .grid-view { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .grid-view .item-card { flex-direction: column; align-items: flex-start; text-align: left; padding: 15px; }
         .grid-view .item-card img { width: 100%; height: 120px; margin-bottom: 8px; }
@@ -124,12 +132,10 @@
         .view.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Botón Flotante */
-        .fab-scan { position: fixed; bottom: 25px; right: 25px; width: 60px; height: 60px; background-color: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(153, 27, 27, 0.4); cursor: pointer; transition: transform 0.2s; z-index: 100; border: none; }
+        .fab-scan { position: fixed; bottom: 25px; right: 25px; width: 60px; height: 60px; background-color: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(226, 6, 19, 0.4); cursor: pointer; transition: transform 0.2s; z-index: 100; border: none; }
         .fab-scan:hover { transform: scale(1.05); }
         .fab-scan svg { width: 26px; height: 26px; }
 
-        /* Modal Escáner */
         #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
         #reader { width: 100%; max-width: 360px; background: white; border-radius: 12px; overflow: hidden; }
         .btn-cerrar-scanner { margin-top: 25px; padding: 14px 30px; background: white; color: var(--text-main); border: none; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; }
@@ -178,14 +184,14 @@
         </button>
     </div>
 
-    <!-- PANTALLA 2: FICHA TÉCNICA -->
+    <!-- PANTALLA 2: DETALLE DEL PRODUCTO -->
     <div id="view-2" class="view">
-        <h2 style="margin-bottom: 15px;">Ficha T&eacute;cnica</h2>
+        <!-- TÍTULO DINÁMICO CON EL CÓDIGO (Letras redondas Nunito) -->
+        <h2 id="tituloProducto" class="title-codigo">---</h2>
         
         <div class="product-img" id="imgContenedor">📸 Foto</div>
         
         <div class="info-box">
-            <div class="info-item"><span class="info-label">C&oacute;digo:</span> <span id="outCodigo">---</span></div>
             <div class="info-item"><span class="info-label">Marca:</span> <span id="outMarca">---</span></div>
             <div class="info-item"><span class="info-label">G&eacute;nero:</span> <span id="outGenero">---</span></div>
             <div class="info-item"><span class="info-label">Tipo Producto:</span> <span id="outTipoProd">---</span></div>
@@ -210,7 +216,6 @@
             </button>
         </div>
         
-        <!-- Filtros Dinámicos -->
         <div class="filters-container">
             <select id="filterMarca" class="filter-select" onchange="aplicarFiltros()"><option value="ALL">Todas las Marcas</option></select>
             <select id="filterGenero" class="filter-select" onchange="aplicarFiltros()"><option value="ALL">Todos los Géneros</option></select>
@@ -241,9 +246,8 @@
     let html5QrcodeScanner = null;
     let currentViewMode = 'list'; 
     let audioCtx = null; 
-    let waMarca = "", waDesc = "", waPrecioAntes = "", waPrecioActual = "";
+    let waMarca = "", waDesc = "", waPrecioAntes = "", waPrecioActual = "", waCodigo = "";
     
-    // Variables para los filtros
     let itemsGlobales = [];
     let categoriaActual = '';
 
@@ -329,7 +333,7 @@
     }
 
     function compartirWhatsApp() {
-        let text = `🔥 ¡Mira esta oportunidad!\n\n👟 *${waMarca}* (Cód: ${document.getElementById('outCodigo').innerText})\n`;
+        let text = `🔥 ¡Mira esta oportunidad!\n\n👟 *${waMarca}* (Cód: ${waCodigo})\n`;
         if(waDesc && waDesc !== '0') text += `📉 Descuento: -${waDesc}%\n`;
         if(waPrecioAntes && waPrecioAntes !== '--') text += `❌ Antes: ${waPrecioAntes}\n`;
         text += `✅ *Ahora: ${waPrecioActual}*\n\n¡Te esperamos en la tienda!`;
@@ -354,13 +358,16 @@
             if(data.encontrado) {
                 guardarReciente(codigo); 
                 
-                document.getElementById('outCodigo').innerText = data.codigo || '--';
+                // ACTUALIZAR TÍTULO CON CÓDIGO (Letras redondas y elegantes)
+                document.getElementById('tituloProducto').innerText = data.codigo || '--';
+                
                 document.getElementById('outMarca').innerText = data.marca || '--';
                 document.getElementById('outGenero').innerText = data.genero || '--';
                 document.getElementById('outTipoProd').innerText = data.tipoProducto || '--';
                 document.getElementById('outProyecto').innerText = (data.proyecto && data.proyecto.toString().trim() !== "") ? data.proyecto : '--';
                 
                 waMarca = data.marca || 'Producto';
+                waCodigo = data.codigo || codigo;
                 waPrecioActual = formatearMoneda(data.nuevoPrecio);
 
                 let numDesc = 0;
@@ -447,9 +454,6 @@
         }
     }
 
-    // ==========================================
-    // LISTADO Y FILTROS
-    // ==========================================
     async function cargarLista(categoria, tituloHumanizado) {
         document.getElementById('loading').style.display = "block";
         document.getElementById('tituloLista').innerText = tituloHumanizado;
@@ -535,7 +539,6 @@
             if (categoriaActual === 'BAJA' && numDesc > 0) badgeHtml = `<div class="item-discount">-${numDesc}%</div>`;
             if (categoriaActual === 'SUBE') badgeHtml = `<div style="font-size: 11px; color: var(--accent-red); font-weight: 600;">⚠️ Alza</div>`;
 
-            // HTML Estructurado para los 3 precios (Retail, Antes, Nuevo)
             const card = document.createElement('div');
             card.className = 'item-card';
             card.onclick = () => procesarCodigo(codigo);
