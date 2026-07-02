@@ -9,7 +9,7 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="apple-touch-icon" href="./icon.png">
     
-    <!-- NUEVO: Fuente redonda y elegante de Google Fonts -->
+    <!-- Fuente redonda y elegante de Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&display=swap" rel="stylesheet">
@@ -37,7 +37,7 @@
         .card { width: 100%; max-width: 440px; background: var(--bg-card); padding: 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); position: relative; border: 1px solid var(--border-light); margin-bottom: 80px; }
         h2 { text-align: center; color: var(--text-main); margin-top: 0; margin-bottom: 25px; font-size: 1.4em; font-weight: 600; letter-spacing: -0.5px; }
         
-        /* NUEVO: Estilo del Título Redondo y Elegante */
+        /* Estilo del Título Redondo y Elegante */
         .title-codigo {
             font-family: 'Nunito', sans-serif;
             font-size: 2em;
@@ -87,7 +87,8 @@
         .price-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
         .price-strike { color: var(--text-light); font-size: 1.1em; text-decoration: line-through; margin-bottom: 10px; }
         .price-actual { color: var(--primary); font-weight: 800; font-size: 2.2em; line-height: 1; margin: 5px 0; }
-        .price-alza-box { display: flex; justify-content: space-between; align-items: center; background: #FEF2F2; border: 1px solid #FCA5A5; padding: 12px; border-radius: 8px; margin-bottom: 15px; }
+        
+        .price-alza-box { display: flex; justify-content: space-between; align-items: center; background: #F9FAFB; border: 1px solid var(--border-light); padding: 12px; border-radius: 8px; margin-bottom: 15px; }
         .price-alza-item { display: flex; flex-direction: column; align-items: flex-start; }
         .price-actual.alert-red { color: var(--accent-red); }
         .discount-badge { background: var(--primary); color: white; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.9em; display: inline-block; margin-bottom: 15px; }
@@ -193,7 +194,7 @@
 
     <!-- PANTALLA 2: DETALLE DEL PRODUCTO -->
     <div id="view-2" class="view">
-        <!-- TÍTULO DINÁMICO CON EL CÓDIGO (Letras redondas Nunito) -->
+        <!-- TÍTULO DINÁMICO CON EL CÓDIGO -->
         <h2 id="tituloProducto" class="title-codigo">---</h2>
         
         <div class="product-img" id="imgContenedor">📸 Foto</div>
@@ -205,6 +206,7 @@
             <div class="info-item"><span class="info-label">Proyecto:</span> <span id="outProyecto">---</span></div>
         </div>
 
+        <!-- CONTENEDOR DE PRECIOS -->
         <div id="priceContainerDynamic"></div>
 
         <button class="btn-primary" onclick="cambiarVista('view-1'); document.getElementById('codigoInput').value='';">Nueva Consulta</button>
@@ -231,7 +233,7 @@
 
         <div id="listaContenedor" class="items-container list-view"></div>
         
-        <!-- Controles de Paginación -->
+        <!-- Paginación -->
         <div id="paginacionContenedor" class="pagination" style="display: none;">
             <button id="btnPrev" class="btn-pag" onclick="cambiarPagina(-1)">Anterior</button>
             <span id="pagTexto" class="pag-info">Página 1 de X</span>
@@ -266,7 +268,6 @@
     let itemsGlobales = [];
     let categoriaActual = '';
     
-    // NUEVO: Variables para Paginación
     let itemsFiltrados = [];
     let paginaActual = 1;
     const itemsPorPagina = 50;
@@ -378,7 +379,6 @@
             if(data.encontrado) {
                 guardarReciente(codigo); 
                 
-                // ACTUALIZAR TÍTULO CON CÓDIGO (Letras redondas y elegantes)
                 document.getElementById('tituloProducto').innerText = data.codigo || '--';
                 
                 document.getElementById('outMarca').innerText = data.marca || '--';
@@ -425,8 +425,16 @@
                     pContainer.innerHTML = `
                         <div class="price-container">
                             <div style="text-align: center;"><div class="discount-badge">BAJA DE PRECIO -${numDesc}%</div></div>
-                            <div class="price-label">Precio Antes</div>
-                            <div class="price-strike">${waPrecioAntes}</div>
+                            <div class="price-alza-box">
+                                <div class="price-alza-item">
+                                    <span class="price-label">Precio Inicial</span>
+                                    <span style="color: var(--text-muted); text-decoration: line-through;">${formatearMoneda(data.precioInicial)}</span>
+                                </div>
+                                <div class="price-alza-item">
+                                    <span class="price-label">Precio Antes</span>
+                                    <span style="color: var(--text-muted); text-decoration: line-through;">${waPrecioAntes}</span>
+                                </div>
+                            </div>
                             <div class="price-label" style="margin-top: 10px;">Precio Actual</div>
                             <div class="price-actual">${waPrecioActual}</div>
                         </div>
@@ -435,7 +443,17 @@
                     waPrecioAntes = "";
                     pContainer.innerHTML = `
                         <div class="price-container">
-                            <div class="price-label">Valor Vigente</div>
+                            <div class="price-alza-box">
+                                <div class="price-alza-item">
+                                    <span class="price-label">Precio Inicial</span>
+                                    <span style="color: var(--text-muted);">${formatearMoneda(data.precioInicial)}</span>
+                                </div>
+                                <div class="price-alza-item">
+                                    <span class="price-label">Precio Antes</span>
+                                    <span style="color: var(--text-muted);">${formatearMoneda(data.precioAntes)}</span>
+                                </div>
+                            </div>
+                            <div class="price-label">Precio Actual</div>
                             <div class="price-actual" style="color: var(--primary);">${waPrecioActual}</div>
                             <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">Sin variaciones recientes</div>
                         </div>
@@ -572,7 +590,6 @@
         
         renderizarPagina();
         
-        // Vuelve el scroll de la lista hacia arriba
         document.getElementById('listaContenedor').scrollTop = 0;
     }
 
@@ -615,11 +632,11 @@
                     <div class="item-meta">${item.marca || '--'} | ${item.genero || '--'}</div>
                     <div class="item-prices">
                         <div class="item-price-old">
-                            <span>Retail</span>
+                            <span>Precio Inicial</span>
                             ${formatearMoneda(item.precioInicial)}
                         </div>
                         <div class="item-price-old">
-                            <span>Antes</span>
+                            <span>Precio Antes</span>
                             ${formatearMoneda(item.precioAntes)}
                         </div>
                         <div class="item-price-new">
