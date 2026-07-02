@@ -3,180 +3,212 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Consulta Integrado</title>
+    <title>Buscador de Precios</title>
     
-    <!-- Librería para el Escáner de Código de Barras -->
+    <!-- Librer&iacute;a para el Esc&aacute;ner de C&oacute;digo de Barras -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
     <style>
-        /* Variables de color para un diseño moderno */
         :root {
-            --primary: #da291c; /* Rojo corporativo (Bata/Reference) */
+            --primary: #da291c;
             --primary-hover: #b81f14;
             --dark: #1f2022;
             --gray: #888;
             --bg-body: #f4f5f7;
             --bg-card: #ffffff;
+            --success: #008000;
+            --warning: #ff9800;
         }
 
-        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        body { background-color: var(--bg-body); padding: 15px; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+        body { background-color: var(--bg-body); padding: 15px; display: flex; justify-content: center; min-height: 100vh; margin: 0; padding-bottom: 80px; }
         
-        .card { width: 100%; max-width: 420px; background: var(--bg-card); padding: 30px 25px; border-radius: 20px; box-shadow: 0 10px 35px rgba(0,0,0,0.06); position: relative; }
-        h2 { text-align: center; color: var(--dark); margin-top: 0; margin-bottom: 25px; font-size: 1.5em; font-weight: 700; }
+        .card { width: 100%; max-width: 450px; background: var(--bg-card); padding: 25px 20px; border-radius: 20px; box-shadow: 0 10px 35px rgba(0,0,0,0.06); position: relative; margin-top: 10px; height: fit-content; }
+        h2 { text-align: center; color: var(--dark); margin-top: 0; margin-bottom: 20px; font-size: 1.4em; font-weight: 700; }
         
-        /* Cajas de inputs modernos con iconos integrados */
-        .input-group { position: relative; width: 100%; margin-bottom: 20px; }
+        /* Input y Buscador */
+        .input-group { position: relative; width: 100%; margin-bottom: 15px; }
         .input-group svg.icon-left { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; color: var(--gray); cursor: pointer; transition: color 0.2s; z-index: 2; }
-        .input-group svg.icon-left:hover { color: var(--primary); }
+        .input-group input { width: 100%; padding: 16px 16px 16px 50px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 16px; color: var(--dark); outline: none; transition: all 0.3s ease; background-color: #fafafa; }
+        .input-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(218, 41, 28, 0.15); background-color: white; }
         
-        .input-group input { width: 100%; padding: 16px 16px 16px 50px; border: 1.5px solid #e0e0e0; border-radius: 12px; font-size: 16px; color: var(--dark); outline: none; transition: all 0.3s ease; background-color: #fafafa; }
-        .input-group input:focus { border-color: var(--dark); box-shadow: 0 0 0 4px rgba(31, 32, 34, 0.1); background-color: white; }
-        
-        /* Input específico para el escáner (Borde rojo como en tu referencia) */
-        .input-group input.input-red-border { border-color: var(--primary); background-color: white; }
-        .input-group input.input-red-border:focus { box-shadow: 0 0 0 4px rgba(218, 41, 28, 0.15); }
-
-        /* Input simple sin icono */
-        .input-group-simple input { padding: 16px; text-align: center; }
-
-        /* Botones Mejorados */
-        .btn-primary { width: 100%; padding: 16px; background-color: var(--primary); color: white; border: none; border-radius: 12px; font-size: 16px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background-color 0.2s, transform 0.1s; }
-        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-primary { width: 100%; padding: 16px; background-color: var(--primary); color: white; border: none; border-radius: 12px; font-size: 16px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s; }
         .btn-primary:active { transform: scale(0.98); }
+        .btn-volver { width: auto; padding: 10px 20px; background-color: transparent; color: var(--gray); border: none; font-size: 14px; cursor: pointer; font-weight: 600; display: block; margin: 15px auto 0; text-decoration: underline; }
         
-        .btn-dark { background-color: var(--dark); }
-        .btn-dark:hover { background-color: #000; }
-
-        .btn-volver { width: auto; padding: 10px 20px; background-color: transparent; color: var(--gray); border: none; font-size: 14px; cursor: pointer; font-weight: 600; display: block; margin: 10px auto 0; text-decoration: underline; transition: color 0.2s; }
-        .btn-volver:hover { color: var(--dark); }
+        /* Men&uacute; de Categor&iacute;as */
+        .menu-grid { display: grid; gap: 12px; margin-top: 25px; }
+        .btn-cat { padding: 16px; border-radius: 12px; border: none; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; color: white; }
+        .btn-cat:active { transform: scale(0.98); }
+        .cat-baja { background: linear-gradient(135deg, #004b23, var(--success)); }
+        .cat-sube { background: linear-gradient(135deg, #b81f14, var(--primary)); }
+        .cat-mantiene { background: linear-gradient(135deg, #444, var(--dark)); }
         
-        /* Contenedores de Información */
-        .tienda-activa-box { margin-bottom: 20px; font-size: 14px; color: #555; text-align: center; background: #f8f9fa; padding: 12px; border-radius: 12px; border: 1px solid #eaeaea; }
-        .tienda-activa-box strong { color: var(--primary); }
+        /* Filtros y Controles de Lista */
+        .controls-bar { display: flex; gap: 10px; margin-bottom: 15px; align-items: center; }
+        .controls-bar select { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; outline: none; background: white; }
+        .btn-icon { padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--dark); }
 
+        /* Vistas de Lista y Cuadr&iacute;cula */
+        #productos-container { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; }
+        #productos-container.grid-view { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        
+        .prod-card { background: white; border: 1px solid #eee; border-radius: 12px; overflow: hidden; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.03); display: flex; flex-direction: row; }
+        .prod-card:active { transform: scale(0.98); }
+        .grid-view .prod-card { flex-direction: column; }
+        
+        .prod-img-mini { width: 100px; height: 100px; background: #f9f9f9; object-fit: contain; flex-shrink: 0; border-right: 1px solid #eee; }
+        .grid-view .prod-img-mini { width: 100%; height: 140px; border-right: none; border-bottom: 1px solid #eee; }
+        
+        .prod-info { padding: 10px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .prod-code { font-size: 11px; color: var(--gray); margin-bottom: 4px; }
+        .prod-brand { font-size: 13px; font-weight: bold; color: var(--dark); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .prod-price-box { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .p-old { font-size: 11px; color: var(--gray); text-decoration: line-through; }
+        .p-new { font-size: 14px; color: var(--primary); font-weight: 900; }
+        .p-badge { font-size: 10px; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        
+        /* Alerta de Aumento de Precio */
+        .alert-sube .p-new { color: var(--dark); }
+        .alert-sube .p-badge { background: var(--warning); color: #000; }
+
+        /* Pantalla de Detalle Individual */
         .info-box { background: #f8f9fa; border: 1px solid #eaeaea; border-radius: 12px; padding: 18px; margin-bottom: 20px; text-align: left; }
         .info-item { margin-bottom: 12px; font-size: 15px; color: #555; display: flex; justify-content: space-between; border-bottom: 1px dashed #e0e0e0; padding-bottom: 6px; }
         .info-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
         .info-label { font-weight: 700; color: var(--dark); }
         
+        .product-img-main { width: 100%; max-width: 200px; height: 200px; background: #f0f0f0; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center; border-radius: 16px; color: #aaa; font-size: 12px; border: 2px dashed #ddd; overflow: hidden; }
+        .price-container { margin: 20px 0; border-top: 2px solid #eee; padding-top: 15px; text-align: center; }
+        .price-sir { color: var(--gray); font-size: 1.1em; text-decoration: line-through; }
+        .price-actual { color: var(--primary); font-weight: 900; font-size: 2.2em; margin: 5px 0; }
+        .detail-badge { background: var(--primary); color: white; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 1em; display: inline-block; margin-bottom: 15px; }
+
+        /* Vistas y Loader */
         .loader { display: none; text-align: center; font-weight: bold; color: var(--gray); margin: 15px 0; }
-        
         .view { display: none; animation: fadeIn 0.3s ease; }
         .view.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        .product-img { width: 100%; max-width: 180px; height: 180px; background: #f0f0f0; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center; border-radius: 16px; color: #aaa; font-size: 12px; border: 2px dashed #ddd; overflow: hidden; }
-        .price-container { margin: 20px 0; border-top: 2px solid #eee; padding-top: 15px; text-align: center; }
-        .price-sir { color: var(--gray); font-size: 1.1em; text-decoration: line-through; }
-        .price-actual { color: var(--primary); font-weight: 800; font-size: 2em; margin: 5px 0; }
-        .discount-badge { background: var(--primary); color: white; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 0.95em; display: inline-block; margin-bottom: 15px; }
+        /* Bot&oacute;n Flotante (FAB) */
+        .fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background-color: #004b23; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 15px rgba(0,75,35,0.4); cursor: pointer; z-index: 100; transition: transform 0.2s; border: none; }
+        .fab:active { transform: scale(0.9); }
+        .fab svg { width: 28px; height: 28px; }
 
-        /* Modal del Escáner mejorado con efecto Blur */
-        #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        /* Modal del Esc&aacute;ner */
+        #scanner-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); backdrop-filter: blur(5px); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
         #reader { width: 100%; max-width: 360px; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .btn-cerrar-scanner { margin-top: 25px; padding: 14px 30px; background: white; color: var(--dark); border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; transition: transform 0.2s; }
-        .btn-cerrar-scanner:active { transform: scale(0.95); }
+        .btn-cerrar-scanner { margin-top: 25px; padding: 14px 30px; background: white; color: var(--dark); border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div class="card">
+<!-- PANTALLA PRINCIPAL: BUSCADOR Y MEN&Uacute; -->
+<div id="view-home" class="card view active">
+    <h2>Consulta de Precios</h2>
     
-    <!-- PANTALLA 1: BUSCADOR EDP -->
-    <div id="view-1" class="view active">
-        <h2>Buscador de Tienda</h2>
-        <div class="input-group input-group-simple">
-            <input type="text" id="edpInput" placeholder="Ingrese c&oacute;digo EDP de la tienda" autofocus onfocus="this.select()">
-        </div>
-        <button class="btn-primary btn-dark" onclick="procesarEDP()">Buscar Tienda</button>
-
-        <div id="edp-result-container" style="display: none; margin-top: 25px; border-top: 2px solid #eee; padding-top: 20px;">
-            <div class="info-box">
-                <div class="info-item"><span class="info-label">EDP:</span> <span id="outGlosa">---</span></div>
-                <div class="info-item"><span class="info-label">Cadena:</span> <span id="outCadena">---</span></div>
-                <div class="info-item"><span class="info-label">Zona:</span> <span id="outZona">---</span></div>
-                <div class="info-item"><span class="info-label">Distrito:</span> <span id="outDistrito">---</span></div>
-            </div>
-            <button class="btn-primary" onclick="irAPantalla2()">Siguiente</button>
-            <button class="btn-volver" onclick="limpiarEDP()">Volver</button>
-        </div>
+    <div class="input-group">
+        <svg class="icon-left" onclick="abrirScanner()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+            <rect x="7" y="7" width="2" height="10"></rect><rect x="11" y="7" width="2" height="10"></rect><rect x="15" y="7" width="2" height="10"></rect>
+        </svg>
+        <input type="text" id="codigoInput" placeholder="Ingrese o escanee c&oacute;digo..." onfocus="this.select()" onkeyup="if(event.key === 'Enter') procesarCodigo()">
     </div>
 
-    <!-- PANTALLA 2: BUSCADOR DE CÓDIGOS Y ESCÁNER INTEGRADO -->
-    <div id="view-2" class="view">
-        <h2>Consulta de Precios</h2>
-        
-        <div class="tienda-activa-box">
-            Tienda Activa: <strong id="lblTiendaActiva">---</strong>
-        </div>
-        
-        <div class="input-group">
-            <!-- Icono de escáner embebido dentro del input (como en la foto de referencia) -->
-            <svg class="icon-left" onclick="abrirScanner()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="Escanear c&oacute;digo">
-                <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
-                <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
-                <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
-                <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
-                <rect x="7" y="7" width="2" height="10"></rect>
-                <rect x="11" y="7" width="2" height="10"></rect>
-                <rect x="15" y="7" width="2" height="10"></rect>
-            </svg>
-            <input type="text" id="codigoInput" class="input-red-border" placeholder="Ingrese o escanee c&oacute;digo..." onfocus="this.select()">
-        </div>
+    <button class="btn-primary" onclick="procesarCodigo()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        Buscar Producto
+    </button>
+    
+    <div id="loading-home" class="loader">Buscando informaci&oacute;n...</div>
 
-        <button class="btn-primary" onclick="procesarCodigo()">
-            <!-- Icono de Lupa -->
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            Buscar
+    <div class="menu-grid">
+        <button class="btn-cat cat-baja" onclick="cargarCategoria('DISMINUYE PRECIO')">
+            <span>⬇️ Disminuyen Precio</span> <span id="count-baja"></span>
         </button>
-        
-        <button class="btn-volver" onclick="cambiarVista('view-1')">Volver atr&aacute;s</button>
+        <button class="btn-cat cat-sube" onclick="cargarCategoria('AUMENTA PRECIO')">
+            <span>⬆️ Aumentan Precio</span> <span id="count-sube"></span>
+        </button>
+        <button class="btn-cat cat-mantiene" onclick="cargarCategoria('SE MANTIENE')">
+            <span>⏸️ Mantienen Precio</span> <span id="count-mantiene"></span>
+        </button>
     </div>
-
-    <!-- PANTALLA 3: RESULTADO DE PRODUCTO -->
-    <div id="view-3" class="view">
-        <h2 style="margin-bottom: 15px;">Detalle de Producto</h2>
-        
-        <div style="text-align: center;">
-            <div id="outDescuento" class="discount-badge">-%</div>
-        </div>
-        
-        <div class="product-img" id="imgContenedor">📸 Foto por definir</div>
-        
-        <div class="info-box">
-            <div class="info-item"><span class="info-label">Marca:</span> <span id="outMarca">---</span></div>
-            <div class="info-item"><span class="info-label">G&eacute;nero:</span> <span id="outGenero">---</span></div>
-            <div class="info-item"><span class="info-label">Proyecto:</span> <span id="outProyecto">---</span></div>
-            <div class="info-item"><span class="info-label">Stock Actual:</span> <span id="outStock" style="font-weight: bold; font-size: 1.1em;">---</span></div>
-        </div>
-
-        <div class="price-container">
-            <div class="price-sir">PRECIO ANTES: <span id="outPrecioSir">---</span></div>
-            <div id="outNuevoPrecio" class="price-actual">---</div>
-        </div>
-
-        <button class="btn-primary" onclick="cambiarVista('view-2')">Nueva Consulta</button>
-    </div>
-
-    <div id="loading" class="loader">Buscando información...</div>
-
 </div>
 
-<!-- MODAL DEL ESCÁNER DE CÁMARA -->
+<!-- PANTALLA DE LISTA DE CATEGOR&Iacute;A -->
+<div id="view-lista" class="card view">
+    <h2 id="titulo-categoria">Cargando...</h2>
+    
+    <div class="controls-bar">
+        <select id="filtro-marca" onchange="renderizarLista()">
+            <option value="ALL">Todas las Marcas</option>
+        </select>
+        <select id="filtro-genero" onchange="renderizarLista()">
+            <option value="ALL">Todos los G&eacute;neros</option>
+        </select>
+        <button class="btn-icon" onclick="toggleVista()" title="Cambiar Vista">
+            <svg id="icon-grid" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+        </button>
+    </div>
+
+    <div id="loading-lista" class="loader">Cargando lista de productos...</div>
+    
+    <div id="productos-container" class="list-view">
+        <!-- Aqu&iacute; se inyectan los productos -->
+    </div>
+
+    <button class="btn-volver" onclick="cambiarVista('view-home')">Volver al Inicio</button>
+</div>
+
+<!-- PANTALLA 3: RESULTADO INDIVIDUAL -->
+<div id="view-detalle" class="card view">
+    <h2 style="margin-bottom: 15px;">Detalle de Producto</h2>
+    
+    <div style="text-align: center;">
+        <div id="outDescuento" class="detail-badge">-%</div>
+        <div id="outAlertaSube" class="detail-badge" style="background-color: var(--warning); color: black; display: none;">ALZA DE PRECIO</div>
+    </div>
+    
+    <div class="product-img-main" id="imgContenedor">📸 Foto</div>
+    
+    <div class="info-box">
+        <div class="info-item"><span class="info-label">C&oacute;digo:</span> <span id="outCodigo">---</span></div>
+        <div class="info-item"><span class="info-label">Marca:</span> <span id="outMarca">---</span></div>
+        <div class="info-item"><span class="info-label">G&eacute;nero:</span> <span id="outGenero">---</span></div>
+        <div class="info-item"><span class="info-label">Proyecto:</span> <span id="outProyecto">---</span></div>
+    </div>
+
+    <div class="price-container">
+        <div class="price-sir">PRECIO ANTES: <span id="outPrecioSir">---</span></div>
+        <div id="outNuevoPrecio" class="price-actual">---</div>
+    </div>
+
+    <button class="btn-primary" onclick="cambiarVista('view-home')">Nueva Consulta</button>
+</div>
+
+<!-- BOT&Oacute;N FLOTANTE DE ESC&Aacute;NER -->
+<button class="fab" onclick="abrirScanner()" title="Escanear">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+</button>
+
+<!-- MODAL DEL ESC&Aacute;NER DE C&Aacute;MARA -->
 <div id="scanner-modal">
     <h3 style="color:white; margin-bottom: 20px;">Enfoca el C&oacute;digo de Barras</h3>
     <div id="reader"></div>
-    <button class="btn-cerrar-scanner" onclick="cerrarScanner()">Cancelar Escaneo</button>
+    <button class="btn-cerrar-scanner" onclick="cerrarScanner()">Cancelar</button>
 </div>
 
 <script>
-    // 🚨 REEMPLAZA ESTA URL POR TU URL DE GOOGLE APPS SCRIPT AQUÍ:
+    // 🚨 REEMPLAZA ESTA URL POR TU URL DE GOOGLE APPS SCRIPT AQU&Iacute;:
     const urlAPI = "https://script.google.com/macros/s/AKfycby6lSF6gjJWTF8UVqFW16vARSORJH-kVPWo4z8VbQnPM7pDAir3PxvtP62-Oylfbg8U/exec";
 
-    let edpActual = "";
-    let glosaActual = "";
     let html5QrcodeScanner = null;
+    let datosCategoriaActual = [];
+    let categoriaActivaStr = "";
+    let isGridView = false;
 
     const formatearMoneda = (valor) => {
         if (!valor) return '$0';
@@ -188,27 +220,21 @@
     function cambiarVista(viewId) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.getElementById(viewId).classList.add('active');
-        
-        if(viewId === 'view-1') document.getElementById('edpInput').focus();
-        if(viewId === 'view-2') {
-            document.getElementById('lblTiendaActiva').innerText = edpActual + " - " + glosaActual;
+        if(viewId === 'view-home') {
             document.getElementById('codigoInput').value = "";
             document.getElementById('codigoInput').focus();
         }
     }
 
     // ==========================================
-    // LÓGICA DEL ESCÁNER DE CÁMARA
+    // ESC&Aacute;NER DE C&Aacute;MARA
     // ==========================================
     function abrirScanner() {
         document.getElementById('scanner-modal').style.display = 'flex';
-        
         if (!html5QrcodeScanner) {
             html5QrcodeScanner = new Html5Qrcode("reader");
         }
-        
         const config = { fps: 10, qrbox: { width: 280, height: 150 } };
-        
         html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
         .catch(err => {
             alert("Error al abrir la c\u00e1mara. Aseg\u00farate de dar permisos en el navegador.");
@@ -225,142 +251,235 @@
 
     function onScanSuccess(decodedText, decodedResult) {
         cerrarScanner();
+        cambiarVista('view-home');
         document.getElementById('codigoInput').value = decodedText;
-        procesarCodigo(); // Busca automáticamente
+        procesarCodigo(); 
     }
+
     // ==========================================
-
-    async function procesarEDP() {
-        const edp = document.getElementById('edpInput').value.trim();
-        if(!edp) return alert("Por favor, ingrese un EDP");
-        
-        document.getElementById('loading').style.display = "block";
-        document.getElementById('edp-result-container').style.display = "none";
-        
-        try {
-            const res = await fetch(`${urlAPI}?action=buscarEDP&edp=${edp}`);
-            const data = await res.json();
-            document.getElementById('loading').style.display = "none";
-            
-            if(data.encontrado) {
-                edpActual = edp; 
-                glosaActual = data.glosaTienda; 
-                
-                document.getElementById('outGlosa').innerText = data.glosaTienda;
-                document.getElementById('outCadena').innerText = data.cadena;
-                document.getElementById('outZona').innerText = data.zona;
-                document.getElementById('outDistrito').innerText = data.distrito;
-                document.getElementById('edp-result-container').style.display = "block";
-            } else {
-                alert("C\u00f3digo EDP no registrado en las tiendas.");
-            }
-        } catch (error) {
-            document.getElementById('loading').style.display = "none";
-            alert("Error al conectar con la base de datos de tiendas.");
+    // B&Uacute;SQUEDA DE PRODUCTO INDIVIDUAL
+    // ==========================================
+    async function procesarCodigo(dataLocal = null) {
+        if (dataLocal) {
+            // Si venimos de hacer clic en la lista, usamos los datos locales
+            mostrarPantallaDetalle(dataLocal);
+            return;
         }
-    }
 
-    function limpiarEDP() {
-        document.getElementById('edpInput').value = "";
-        edpActual = ""; 
-        glosaActual = "";
-        document.getElementById('edp-result-container').style.display = "none";
-        document.getElementById('edpInput').focus();
-    }
-
-    function irAPantalla2() {
-        cambiarVista('view-2');
-    }
-
-    async function procesarCodigo() {
         let codigo = document.getElementById('codigoInput').value.trim();
-        if(!codigo) return alert("Por favor, ingrese o escanee un c\u00f3digo");
+        if(!codigo) return alert("Por favor, ingrese un c\u00f3digo");
         
-        // 🚨 LÓGICA EAN-13: Cortar del dígito 2 al 8
+        // CORTAR EAN-13 (D&iacute;gito 2 al 8)
         if (codigo.length === 13 && !isNaN(codigo)) {
             codigo = codigo.substring(1, 8);
-            document.getElementById('codigoInput').value = codigo; // Muestra el código cortado
+            document.getElementById('codigoInput').value = codigo;
         }
         
-        document.getElementById('loading').style.display = "block";
+        document.getElementById('loading-home').style.display = "block";
         
         try {
-            const res = await fetch(`${urlAPI}?action=buscarCodigo&codigo=${codigo}&edp=${edpActual}`);
+            const res = await fetch(`${urlAPI}?action=buscarCodigo&codigo=${codigo}`);
             const data = await res.json();
-            document.getElementById('loading').style.display = "none";
+            document.getElementById('loading-home').style.display = "none";
             
             if(data.encontrado) {
-                document.getElementById('outMarca').innerText = data.marca || '--';
-                document.getElementById('outGenero').innerText = data.genero || '--';
-                document.getElementById('outProyecto').innerText = (data.proyecto && data.proyecto.toString().trim() !== "") ? data.proyecto : '--';
-                
-                document.getElementById('outPrecioSir').innerText = formatearMoneda(data.precioSir);
-                document.getElementById('outNuevoPrecio').innerText = formatearMoneda(data.nuevoPrecio);
-                
-                let descValue = data.descuento ? data.descuento.toString().trim().replace(',', '.') : '0';
-                let numDesc = parseFloat(descValue.replace('%', ''));
-                if (!isNaN(numDesc) && numDesc !== 0) {
-                    if (numDesc > 0 && numDesc <= 1) numDesc = Math.round(numDesc * 100);
-                    document.getElementById('outDescuento').innerText = `DESCUENTO -${numDesc}%`;
-                    document.getElementById('outDescuento').style.display = "inline-block";
-                } else {
-                    document.getElementById('outDescuento').style.display = "none";
-                }
-                
-                const stockElemento = document.getElementById('outStock');
-                if (parseInt(data.stock, 10) === 0 || data.stock === "0") {
-                    stockElemento.style.color = "#da291c"; 
-                    stockElemento.innerText = "SIN STOCK";
-                } else {
-                    stockElemento.style.color = "#1f2022"; 
-                    stockElemento.innerText = data.stock !== undefined ? data.stock : '0';
-                }
-
-                // =========================================================
-                // LÓGICA DE FOTOS LOCALES (EN GITHUB) + RESPALDO BATA.CL
-                // =========================================================
-                const imgContainer = document.getElementById('imgContenedor');
-                imgContainer.innerHTML = ''; 
-                
-                // Rellena con ceros a la izquierda para que siempre tenga 7 dígitos exactos
-                const codigoFoto = codigo.toString().padStart(7, '0');
-                
-                // Busca la foto en la carpeta que subas a GitHub ("fotos") usando el código de 7 dígitos
-                const urlFoto = `./fotos/${codigoFoto}.jpg`; 
-                const urlBusquedaBata = `https://www.bata.com/cl/search?q=${codigo}`;
-
-                const imgElement = document.createElement('img');
-                imgElement.src = urlFoto;
-                imgElement.style.width = '100%';
-                imgElement.style.height = '100%';
-                imgElement.style.objectFit = 'contain';
-                
-                // Si la foto no existe localmente, crea el enlace a Bata.cl
-                imgElement.onerror = function() {
-                    imgContainer.style.background = '#f8f9fa';
-                    imgContainer.style.border = '2px dashed #ddd';
-                    imgContainer.innerHTML = `
-                        <a href="${urlBusquedaBata}" target="_blank" style="color:#666; text-decoration:none; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; padding: 10px;">
-                            <span style="font-size:28px;">📸</span>
-                            <span style="margin-top:5px; font-weight:bold;">Sin Foto Interna</span>
-                            <span style="color:#da291c; font-size:13px; text-decoration:underline; margin-top:5px; text-align: center;">Toca aqu&iacute; para ver el producto en Bata.cl</span>
-                        </a>
-                    `;
-                };
-
-                imgContainer.appendChild(imgElement);
-                imgContainer.style.background = "transparent";
-                imgContainer.style.border = "none";
-                // =========================================================
-
-                cambiarVista('view-3');
+                mostrarPantallaDetalle(data);
             } else {
-                alert("El c\u00f3digo de producto no existe en esta tienda.");
+                alert("El c\u00f3digo de producto no se encuentra en el cat\u00e1logo.");
             }
         } catch (error) {
-            document.getElementById('loading').style.display = "none";
-            alert("Error al conectar con la base de datos.");
+            document.getElementById('loading-home').style.display = "none";
+            alert("Error de conexi\u00f3n con la base de datos.");
         }
+    }
+
+    function mostrarPantallaDetalle(data) {
+        document.getElementById('outCodigo').innerText = data.codigo || '--';
+        document.getElementById('outMarca').innerText = data.marca || '--';
+        document.getElementById('outGenero').innerText = data.genero || '--';
+        document.getElementById('outProyecto').innerText = (data.proyecto && data.proyecto.toString().trim() !== "") ? data.proyecto : '--';
+        
+        document.getElementById('outPrecioSir').innerText = formatearMoneda(data.precioAntes);
+        document.getElementById('outNuevoPrecio').innerText = formatearMoneda(data.precioActual);
+        
+        // Manejo de Etiquetas de Descuento / Alza
+        document.getElementById('outDescuento').style.display = "none";
+        document.getElementById('outAlertaSube').style.display = "none";
+        
+        let estatus = (data.estatus || "").toUpperCase();
+        if (estatus.includes("DISMINUYE")) {
+            let descValue = data.descuento ? data.descuento.toString().trim().replace(',', '.') : '0';
+            let numDesc = parseFloat(descValue.replace('%', ''));
+            if (!isNaN(numDesc) && numDesc !== 0) {
+                if (numDesc > 0 && numDesc <= 1) numDesc = Math.round(numDesc * 100);
+                document.getElementById('outDescuento').innerText = `DESCUENTO -${numDesc}%`;
+                document.getElementById('outDescuento').style.display = "inline-block";
+            }
+        } else if (estatus.includes("AUMENTA")) {
+            document.getElementById('outAlertaSube').style.display = "inline-block";
+        }
+
+        // L&Oacute;GICA DE FOTOS CON RELLENO DE CEROS (7 D&Iacute;GITOS)
+        const imgContainer = document.getElementById('imgContenedor');
+        imgContainer.innerHTML = ''; 
+        
+        const codigoPad = String(data.codigo).padStart(7, '0');
+        const urlFoto = `./fotos/${codigoPad}.jpg`; 
+        const urlBusquedaBata = `https://www.bata.com/cl/search?q=${data.codigo}`;
+
+        const imgElement = document.createElement('img');
+        imgElement.src = urlFoto;
+        imgElement.style.width = '100%';
+        imgElement.style.height = '100%';
+        imgElement.style.objectFit = 'contain';
+        
+        imgElement.onerror = function() {
+            imgContainer.style.background = '#f8f9fa';
+            imgContainer.style.border = '2px dashed #ddd';
+            imgContainer.innerHTML = `
+                <a href="${urlBusquedaBata}" target="_blank" style="color:#666; text-decoration:none; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; padding: 10px;">
+                    <span style="font-size:28px;">📸</span>
+                    <span style="margin-top:5px; font-weight:bold;">Sin Foto Interna</span>
+                    <span style="color:var(--primary); font-size:12px; text-decoration:underline; margin-top:5px; text-align: center;">Toca aqu&iacute; para buscar en Bata.cl</span>
+                </a>
+            `;
+        };
+
+        imgContainer.appendChild(imgElement);
+        imgContainer.style.background = "transparent";
+        imgContainer.style.border = "none";
+
+        cambiarVista('view-detalle');
+    }
+
+    // ==========================================
+    // MEN&Uacute; Y LISTAS DE CATEGOR&Iacute;AS
+    // ==========================================
+    async function cargarCategoria(categoria) {
+        categoriaActivaStr = categoria;
+        document.getElementById('titulo-categoria').innerText = categoria;
+        document.getElementById('loading-home').style.display = "block";
+        
+        try {
+            const res = await fetch(`${urlAPI}?action=obtenerCategoria&categoria=${encodeURIComponent(categoria)}`);
+            let data = await res.json();
+            document.getElementById('loading-home').style.display = "none";
+            
+            // Ordenamiento Inteligente
+            if(categoria.includes("DISMINUYE")) {
+                data.sort((a, b) => {
+                    let d1 = parseFloat(a.descuento.toString().replace('%','').replace(',','.')) || 0;
+                    let d2 = parseFloat(b.descuento.toString().replace('%','').replace(',','.')) || 0;
+                    return d2 - d1; // Mayor descuento primero
+                });
+            } else if (categoria.includes("AUMENTA")) {
+                data.sort((a, b) => {
+                    let d1 = (a.precioActual || 0) - (a.precioAntes || 0);
+                    let d2 = (b.precioActual || 0) - (b.precioAntes || 0);
+                    return d2 - d1; // Mayor alza primero
+                });
+            }
+
+            datosCategoriaActual = data;
+            extraerFiltros(data);
+            cambiarVista('view-lista');
+            renderizarLista();
+            
+        } catch (error) {
+            document.getElementById('loading-home').style.display = "none";
+            alert("Error al obtener la lista.");
+        }
+    }
+
+    function extraerFiltros(data) {
+        const marcas = new Set();
+        const generos = new Set();
+        data.forEach(item => {
+            if(item.marca) marcas.add(item.marca);
+            if(item.genero) generos.add(item.genero);
+        });
+
+        const selectMarca = document.getElementById('filtro-marca');
+        selectMarca.innerHTML = '<option value="ALL">Todas las Marcas</option>';
+        Array.from(marcas).sort().forEach(m => {
+            selectMarca.innerHTML += `<option value="${m}">${m}</option>`;
+        });
+
+        const selectGenero = document.getElementById('filtro-genero');
+        selectGenero.innerHTML = '<option value="ALL">Todos los G&eacute;neros</option>';
+        Array.from(generos).sort().forEach(g => {
+            selectGenero.innerHTML += `<option value="${g}">${g}</option>`;
+        });
+    }
+
+    function toggleVista() {
+        isGridView = !isGridView;
+        const container = document.getElementById('productos-container');
+        if(isGridView) {
+            container.classList.add('grid-view');
+            container.classList.remove('list-view');
+        } else {
+            container.classList.add('list-view');
+            container.classList.remove('grid-view');
+        }
+        renderizarLista();
+    }
+
+    function renderizarLista() {
+        const container = document.getElementById('productos-container');
+        container.innerHTML = "";
+        
+        const filtroMarca = document.getElementById('filtro-marca').value;
+        const filtroGenero = document.getElementById('filtro-genero').value;
+
+        const dataFiltrada = datosCategoriaActual.filter(item => {
+            let pasaMarca = (filtroMarca === "ALL" || item.marca === filtroMarca);
+            let pasaGenero = (filtroGenero === "ALL" || item.genero === filtroGenero);
+            return pasaMarca && pasaGenero;
+        });
+
+        if(dataFiltrada.length === 0) {
+            container.innerHTML = "<p style='text-align:center; color:#888;'>No hay productos que coincidan con estos filtros.</p>";
+            return;
+        }
+
+        dataFiltrada.forEach(item => {
+            const codigoPad = String(item.codigo).padStart(7, '0');
+            const urlFoto = `./fotos/${codigoPad}.jpg`;
+            const esAlza = categoriaActivaStr.includes("AUMENTA");
+            
+            let htmlDesc = "";
+            if(!esAlza && item.descuento) {
+                let numDesc = parseFloat(item.descuento.toString().replace('%','').replace(',','.'));
+                if(!isNaN(numDesc) && numDesc > 0) {
+                    if(numDesc <= 1) numDesc = Math.round(numDesc * 100);
+                    htmlDesc = `<span class="p-badge">-${numDesc}%</span>`;
+                }
+            } else if (esAlza) {
+                htmlDesc = `<span class="p-badge" style="background:var(--warning); color:#000;">ALZA</span>`;
+            }
+
+            const div = document.createElement('div');
+            div.className = `prod-card ${esAlza ? 'alert-sube' : ''}`;
+            // Al hacer clic, pasamos el objeto completo a la funci&oacute;n
+            div.onclick = () => procesarCodigo(item);
+
+            div.innerHTML = `
+                <img src="${urlFoto}" class="prod-img-mini" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23eeeeee%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22Arial%22 font-size=%2210%22 fill=%22%23999%22>Sin Foto</text></svg>'">
+                <div class="prod-info">
+                    <div class="prod-code">C&oacute;digo: ${item.codigo}</div>
+                    <div class="prod-brand">${item.marca || 'Sin Marca'}</div>
+                    <div class="prod-price-box">
+                        <span class="p-old">${formatearMoneda(item.precioAntes)}</span>
+                        ${htmlDesc}
+                    </div>
+                    <div class="prod-price-box" style="margin-top:2px;">
+                        <span class="p-new">${formatearMoneda(item.precioActual)}</span>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
     }
 </script>
 </body>
