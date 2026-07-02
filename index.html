@@ -127,6 +127,13 @@
         .grid-view .item-prices { width: 100%; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 5px; border-top: 1px solid #F3F4F6; padding-top: 8px;}
         .grid-view .item-price-new { margin-left: 0; font-size: 18px; }
 
+        /* Paginación */
+        .pagination { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-light); margin-bottom: 15px; }
+        .btn-pag { padding: 8px 16px; background: white; border: 1px solid var(--border-light); border-radius: 8px; color: var(--text-main); font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 13px; }
+        .btn-pag:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+        .btn-pag:disabled { opacity: 0.4; cursor: not-allowed; }
+        .pag-info { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+
         .loader { display: none; text-align: center; font-size: 14px; color: var(--text-muted); margin: 20px 0; }
         .view { display: none; animation: fadeIn 0.3s ease; }
         .view.active { display: block; }
@@ -223,6 +230,14 @@
         </div>
 
         <div id="listaContenedor" class="items-container list-view"></div>
+        
+        <!-- Controles de Paginación -->
+        <div id="paginacionContenedor" class="pagination" style="display: none;">
+            <button id="btnPrev" class="btn-pag" onclick="cambiarPagina(-1)">Anterior</button>
+            <span id="pagTexto" class="pag-info">Página 1 de X</span>
+            <button id="btnNext" class="btn-pag" onclick="cambiarPagina(1)">Siguiente</button>
+        </div>
+
         <button class="btn-volver" onclick="cambiarVista('view-1')">Volver al Inicio</button>
     </div>
 
@@ -250,6 +265,11 @@
     
     let itemsGlobales = [];
     let categoriaActual = '';
+    
+    // NUEVO: Variables para Paginación
+    let itemsFiltrados = [];
+    let paginaActual = 1;
+    const itemsPorPagina = 50;
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(err => console.log('PWA no registrada', err));
@@ -467,8 +487,12 @@
 
             if (data.encontrado && data.items && data.items.length > 0) {
                 itemsGlobales = data.items;
+                itemsFiltrados = [...itemsGlobales];
+                paginaActual = 1;
+                
                 poblarFiltros(itemsGlobales);
-                renderizarItems(itemsGlobales);
+                renderizarPagina();
+                
                 cambiarVista('view-3');
             } else {
                 alert("No se encontraron artículos.");
@@ -511,7 +535,45 @@
             return pasaMarca && pasaGenero && pasaTipo;
         });
 
-        renderizarItems(filtrados);
+        itemsFiltrados = filtrados;
+        paginaActual = 1;
+        renderizarPagina();
+    }
+
+    function renderizarPagina() {
+        const inicio = (paginaActual - 1) * itemsPorPagina;
+        const fin = inicio + itemsPorPagina;
+        const itemsA_Mostrar = itemsFiltrados.slice(inicio, fin);
+        
+        renderizarItems(itemsA_Mostrar);
+        renderizarControlesPaginacion();
+    }
+
+    function renderizarControlesPaginacion() {
+        const totalPaginas = Math.ceil(itemsFiltrados.length / itemsPorPagina);
+        const contPaginacion = document.getElementById('paginacionContenedor');
+        
+        if (totalPaginas <= 1) {
+            contPaginacion.style.display = 'none';
+            return;
+        }
+        
+        contPaginacion.style.display = 'flex';
+        document.getElementById('pagTexto').innerText = `Página ${paginaActual} de ${totalPaginas}`;
+        document.getElementById('btnPrev').disabled = paginaActual === 1;
+        document.getElementById('btnNext').disabled = paginaActual === totalPaginas;
+    }
+
+    function cambiarPagina(delta) {
+        const totalPaginas = Math.ceil(itemsFiltrados.length / itemsPorPagina);
+        paginaActual += delta;
+        if (paginaActual < 1) paginaActual = 1;
+        if (paginaActual > totalPaginas) paginaActual = totalPaginas;
+        
+        renderizarPagina();
+        
+        // Vuelve el scroll de la lista hacia arriba
+        document.getElementById('listaContenedor').scrollTop = 0;
     }
 
     function renderizarItems(items) {
