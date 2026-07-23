@@ -15,11 +15,66 @@ let itemsFiltrados = [];
 let paginaActual = 1;
 const itemsPorPagina = 50;
 
+// Canal de tienda: define qué columna de precio del Sheet se usa en toda la app
+const CAMPO_PRECIO_CANAL = { estandar: 'precioTienda', outlet: 'precioOutlet', piloto: 'precioPiloto' };
+const LABEL_TIENDA = { estandar: 'Tienda Estándar', outlet: 'Outlet', piloto: 'Piloto 30 Tiendas' };
+let tiendaActual = localStorage.getItem('tiendaSeleccionada') || null;
+
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(err => console.log('PWA no registrada', err));
 }
 
-document.addEventListener("DOMContentLoaded", cargarRecientes);
+document.addEventListener("DOMContentLoaded", () => {
+    cargarRecientes();
+    if (tiendaActual && CAMPO_PRECIO_CANAL[tiendaActual]) {
+        actualizarChipTienda();
+        cambiarVista('view-1');
+    }
+});
+
+function seleccionarTienda(tipo) {
+    tiendaActual = tipo;
+    localStorage.setItem('tiendaSeleccionada', tipo);
+    actualizarChipTienda();
+    cambiarVista('view-1');
+}
+
+function actualizarChipTienda() {
+    const label = document.getElementById('tiendaActualLabel');
+    if (label) label.textContent = LABEL_TIENDA[tiendaActual] || '--';
+}
+
+// Toma un valor de un objeto, y si no existe usa un campo alterno (compatibilidad mientras se actualiza el Apps Script)
+function valorConFallback(obj, campoPrimario, campoAlterno) {
+    const v = obj[campoPrimario];
+    return (v !== undefined && v !== null && v !== '') ? v : obj[campoAlterno];
+}
+
+// % de descuento del canal seleccionado respecto al Full Price Retail (precio base)
+function calcularDescuentoCanal(precioBase, precioCanal) {
+    const base = parseInt((precioBase || '').toString().replace(/\D/g, ''), 10);
+    const canal = parseInt((precioCanal || '').toString().replace(/\D/g, ''), 10);
+    if (!base || isNaN(base) || isNaN(canal)) return 0;
+    const pct = Math.round((base - canal) / base * 100);
+    return pct > 0 ? pct : 0;
+}
+
+// Normaliza la columna "Obsolescencia final" (50, 100 o vacío) a '50' | '100' | ''
+function obtenerNivelObsolescencia(valor) {
+    if (valor === undefined || valor === null) return '';
+    const str = valor.toString().trim();
+    if (str === '50') return '50';
+    if (str === '100') return '100';
+    return '';
+}
+
+function renderObsolescenciaAlert(nivel) {
+    if (!nivel) return '';
+    const mensaje = nivel === '100'
+        ? '🔴 Obsolescencia 100% — producto descontinuado'
+        : '⚠️ Obsolescencia 50% — posible descontinuación';
+    return `<div class="obsolescencia-alert nivel-${nivel}">${mensaje}</div>`;
+}
 
 const formatearMoneda = (valor) => {
     if (valor === undefined || valor === null || valor === '') return '--';
@@ -30,14 +85,15 @@ const formatearMoneda = (valor) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(numero);
 };
 
-// Normaliza valores de descuento que pueden venir como "15", "15%", "0,15" o "0.15"
-function parsearDescuento(valorDescuento) {
-    if (!valorDescuento) return 0;
-    let str = valorDescuento.toString().trim().replace('%', '').replace(',', '.');
-    let num = parseFloat(str);
-    if (isNaN(num)) return 0;
-    if (num > 0 && num <= 1) num = num * 100;
-    return Math.round(num);
+// Formatea la fecha de actualización de precio, venga como ISO (Date de Apps Script) o como texto ya legible
+function formatearFecha(valor) {
+    if (valor === undefined || valor === null || valor === '') return '';
+    const str = valor.toString().trim();
+    if (str === '' || str === '--') return '';
+    const fecha = new Date(str);
+    if (isNaN(fecha.getTime())) return str;
+    // timeZone UTC evita que la fecha se corra un día por la zona horaria del navegador
+    return new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(fecha);
 }
 
 // Wrapper de fetch con timeout, para no dejar el loader colgado si la API no responde
@@ -172,23 +228,30 @@ async function procesarCodigo(codDirecto = null) {
 
             waMarca = data.marca || 'Producto';
             waCodigo = data.codigo || codigo;
-            waPrecioActual = formatearMoneda(data.nuevoPrecio);
 
-            const numDesc = parsearDescuento(data.descuento);
+            const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
+            const precioBase = valorConFallback(data, 'fullPriceRetail', 'precioInicial');
+            const precioCanal = valorConFallback(data, campoPrecio, 'nuevoPrecio');
+            waPrecioActual = formatearMoneda(precioCanal);
+
+            const numDesc = calcularDescuentoCanal(precioBase, precioCanal);
             waDesc = numDesc;
 
             const pContainer = document.getElementById('priceContainerDynamic');
             pContainer.innerHTML = '';
             const estatus = data.estatus || '';
 
+            const labelCanal = `<div style="text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:600; letter-spacing:0.5px; margin-bottom:6px;">Precio ${LABEL_TIENDA[tiendaActual] || ''}</div>`;
+
             if (estatus.includes('SUBE') || estatus.includes('AUMENTA')) {
                 waPrecioAntes = formatearMoneda(data.precioAntes);
                 pContainer.innerHTML = `
+                    ${labelCanal}
                     <div class="price-container">
                         <div class="price-alza-box">
                             <div class="price-alza-item">
                                 <span class="price-label">Precio Inicial</span>
-                                <span style="color: var(--text-muted); text-decoration: line-through;">${formatearMoneda(data.precioInicial)}</span>
+                                <span style="color: var(--text-muted); text-decoration: line-through;">${formatearMoneda(precioBase)}</span>
                             </div>
                             <div class="price-alza-item">
                                 <span class="price-label">Precio Antes</span>
@@ -202,12 +265,13 @@ async function procesarCodigo(codDirecto = null) {
             } else if (estatus.includes('BAJA') || estatus.includes('DISMINUYE') || numDesc > 0) {
                 waPrecioAntes = formatearMoneda(data.precioAntes);
                 pContainer.innerHTML = `
+                    ${labelCanal}
                     <div class="price-container">
                         <div style="text-align: center;"><div class="discount-badge">BAJA DE PRECIO -${numDesc}%</div></div>
                         <div class="price-alza-box">
                             <div class="price-alza-item">
                                 <span class="price-label">Precio Inicial</span>
-                                <span style="color: var(--text-muted); text-decoration: line-through;">${formatearMoneda(data.precioInicial)}</span>
+                                <span style="color: var(--text-muted); text-decoration: line-through;">${formatearMoneda(precioBase)}</span>
                             </div>
                             <div class="price-alza-item">
                                 <span class="price-label">Precio Antes</span>
@@ -221,11 +285,12 @@ async function procesarCodigo(codDirecto = null) {
             } else {
                 waPrecioAntes = "";
                 pContainer.innerHTML = `
+                    ${labelCanal}
                     <div class="price-container">
                         <div class="price-alza-box">
                             <div class="price-alza-item">
                                 <span class="price-label">Precio Inicial</span>
-                                <span style="color: var(--text-muted);">${formatearMoneda(data.precioInicial)}</span>
+                                <span style="color: var(--text-muted);">${formatearMoneda(precioBase)}</span>
                             </div>
                             <div class="price-alza-item">
                                 <span class="price-label">Precio Antes</span>
@@ -238,6 +303,18 @@ async function procesarCodigo(codDirecto = null) {
                     </div>
                 `;
             }
+
+            const fechaTxt = formatearFecha(data.fechaActualizacion);
+            if (fechaTxt) {
+                pContainer.innerHTML += `<div style="font-size: 11px; color: var(--text-light); text-align: center; margin-top: 8px;">Precio actualizado el ${fechaTxt}</div>`;
+            }
+
+            const nivelObs = obtenerNivelObsolescencia(data.obsolescencia);
+            const obsContainer = document.getElementById('obsolescenciaContainer');
+            obsContainer.innerHTML = renderObsolescenciaAlert(nivelObs);
+            const infoBoxEl = document.getElementById('infoBoxProducto');
+            infoBoxEl.classList.remove('obsolescencia-50', 'obsolescencia-100');
+            if (nivelObs) infoBoxEl.classList.add('obsolescencia-' + nivelObs);
 
             const imgContainer = document.getElementById('imgContenedor');
             imgContainer.innerHTML = '';
@@ -390,40 +467,48 @@ function renderizarItems(items) {
         return;
     }
 
+    const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
+
     items.forEach(item => {
         const codigo = item.codigo ? item.codigo.toString().padStart(7, '0') : '';
         const urlFoto = `./fotos/${codigo}.jpg`;
         const urlFotoUpper = `./fotos/${codigo}.JPG`;
 
-        const numDesc = parsearDescuento(item.descuento);
+        const precioBase = valorConFallback(item, 'fullPriceRetail', 'precioInicial');
+        const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
+        const numDesc = calcularDescuentoCanal(precioBase, precioCanal);
 
         let badgeHtml = '';
         if (categoriaActual === 'BAJA' && numDesc > 0) badgeHtml = `<div class="item-discount">-${numDesc}%</div>`;
         if (categoriaActual === 'SUBE') badgeHtml = `<div style="font-size: 11px; color: var(--accent-red); font-weight: 600;">⚠️ Alza</div>`;
 
+        const nivelObs = obtenerNivelObsolescencia(item.obsolescencia);
+        const claseObs = nivelObs ? ` obsolescencia-${nivelObs}` : '';
+        const badgeObs = nivelObs ? `<span class="item-badge-obsolescencia nivel-${nivelObs}">Obs. ${nivelObs}%</span>` : '';
+
         const card = document.createElement('div');
-        card.className = 'item-card';
+        card.className = 'item-card' + claseObs;
         card.onclick = () => procesarCodigo(codigo);
 
         card.innerHTML = `
             <img src="${urlFoto}" onerror="this.onerror=null; this.src='${urlFotoUpper}';">
             <div class="item-details">
                 <div class="item-header-row">
-                    <div class="item-code">${codigo}</div>
+                    <div class="item-code">${codigo}${badgeObs}</div>
                     ${badgeHtml}
                 </div>
                 <div class="item-meta">${item.marca || '--'} | ${item.genero || '--'}</div>
                 <div class="item-prices">
                     <div class="item-price-old">
                         <span>Precio Inicial</span>
-                        ${formatearMoneda(item.precioInicial)}
+                        ${formatearMoneda(precioBase)}
                     </div>
                     <div class="item-price-old">
                         <span>Precio Antes</span>
                         ${formatearMoneda(item.precioAntes)}
                     </div>
                     <div class="item-price-new">
-                        ${formatearMoneda(item.nuevoPrecio)}
+                        ${formatearMoneda(precioCanal)}
                     </div>
                 </div>
             </div>

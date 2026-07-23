@@ -22,11 +22,38 @@
 <body>
 
 <div class="card">
-    
+
+    <!-- PANTALLA 0: SELECCIÓN DE TIPO DE TIENDA -->
+    <div id="view-0" class="view active">
+        <h2>Seleccione Tipo de Tienda</h2>
+        <p style="text-align:center; color:var(--text-muted); font-size:13px; margin-top:-15px; margin-bottom:25px;">Los precios se mostrarán seg&uacute;n el canal que elija</p>
+
+        <button class="btn-primary btn-outline btn-tienda" onclick="seleccionarTienda('estandar')">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l8-4v18"></path><path d="M19 21V11l-6-4"></path></svg>
+            Tienda Est&aacute;ndar
+        </button>
+
+        <button class="btn-primary btn-outline btn-tienda" onclick="seleccionarTienda('outlet')">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4z"></path></svg>
+            Outlet
+        </button>
+
+        <button class="btn-primary btn-outline btn-tienda" onclick="seleccionarTienda('piloto')">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle></svg>
+            Piloto 30 Tiendas
+        </button>
+    </div>
+
     <!-- PANTALLA 1: BUSCADOR PRINCIPAL -->
-    <div id="view-1" class="view active">
+    <div id="view-1" class="view">
         <h2>Buscador de Art&iacute;culos</h2>
-        
+
+        <div class="tienda-chip" onclick="cambiarVista('view-0')" title="Cambiar tipo de tienda">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l8-4v18"></path><path d="M19 21V11l-6-4"></path></svg>
+            <span id="tiendaActualLabel">--</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+
         <div class="input-group">
             <svg class="icon-left" onclick="abrirScanner()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="2" height="10"></rect><rect x="11" y="7" width="2" height="10"></rect><rect x="15" y="7" width="2" height="10"></rect>
@@ -68,8 +95,10 @@
         <h2 id="tituloProducto" class="title-codigo">---</h2>
         
         <div class="product-img" id="imgContenedor">📸 Foto</div>
-        
-        <div class="info-box">
+
+        <div id="obsolescenciaContainer"></div>
+
+        <div class="info-box" id="infoBoxProducto">
             <div class="info-item"><span class="info-label">Marca:</span> <span id="outMarca">---</span></div>
             <div class="info-item"><span class="info-label">G&eacute;nero:</span> <span id="outGenero">---</span></div>
             <div class="info-item"><span class="info-label">Tipo Producto:</span> <span id="outTipoProd">---</span></div>

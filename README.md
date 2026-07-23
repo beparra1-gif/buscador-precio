@@ -31,6 +31,31 @@ La URL del Google Apps Script que sirve los datos está en `app.js` (constante `
 - `?action=buscarCodigo&codigo=XXXXXXX` → detalle de un producto
 - `?action=listarCategoria&categoria=SUBE|BAJA|MANTIENE` → listado por categoría
 
+### Contrato de datos (campos que debe devolver el Apps Script)
+
+La app trabaja con 3 canales de precio (el usuario elige uno al entrar: Tienda Estándar / Outlet / Piloto 30 Tiendas) y calcula el % de descuento en el frontend contra el precio base. Cada producto (tanto en `buscarCodigo` como en cada item de `listarCategoria`) debe incluir estos campos, mapeados desde las columnas de la hoja **BASE PRECIOS**:
+
+| Campo JSON        | Columna del Sheet     | Uso |
+|--------------------|------------------------|-----|
+| `fullPriceRetail`  | Full Price Retail      | Precio base para calcular el % de descuento de cada canal |
+| `precioAntes`      | Precio Antes            | Se muestra como referencia tachada junto al precio base |
+| `precioTienda`     | Precios Tiendas         | Precio cuando el usuario elige "Tienda Estándar" |
+| `precioOutlet`     | Precios Outlet          | Precio cuando el usuario elige "Outlet" |
+| `precioPiloto`     | Precio 30 tiendas       | Precio cuando el usuario elige "Piloto 30 Tiendas" |
+| `estatus`          | OBSERVACION             | `"SUBE"` / `"BAJA"` / `"MANTIENE"` (u otro texto que contenga esas palabras) — sin cambios respecto a la lógica anterior |
+| `obsolescencia`    | Obsolescencia final     | `"50"`, `"100"` o vacío — dispara la alerta y el borde de color en la tarjeta del producto |
+| `fechaActualizacion` | (columna de fecha, si se agrega) | Opcional. Fecha del último cambio de precio |
+
+El % de descuento por canal **lo calcula el frontend**: `(fullPriceRetail - precioCanal) / fullPriceRetail * 100`. No hace falta que el Apps Script mande el % ya calculado.
+
+Todos estos campos son opcionales por compatibilidad hacia atrás: si faltan, el frontend cae de vuelta a los campos antiguos (`precioInicial`, `nuevoPrecio`) para no romper mientras se actualiza el script.
+
+En Apps Script, donde arman el objeto de respuesta (algo como `{ codigo: row[0], marca: row[1], ... }`), agreguen las líneas correspondientes a estos nuevos campos usando el índice de columna real de cada uno en la hoja.
+
+### Selector de tipo de tienda
+
+Al abrir la app por primera vez, se pide elegir el canal (Estándar / Outlet / Piloto 30 Tiendas). La elección se guarda en `localStorage` (`tiendaSeleccionada`) y se reutiliza en visitas futuras; se puede cambiar en cualquier momento tocando el chip que aparece arriba del buscador. Todos los precios mostrados (detalle y listados) corresponden al canal activo.
+
 ## Al desplegar un cambio
 
 Si modificas `index.html`, `style.css`, `app.js` o `manifest.json`, **sube el número de `CACHE_VERSION` en `sw.js`**. El service worker cachea el app shell de forma agresiva (cache-first); sin ese cambio de versión, los usuarios que ya instalaron la PWA pueden seguir viendo la versión vieja hasta que limpien el caché manualmente.
