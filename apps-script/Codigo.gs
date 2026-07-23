@@ -61,12 +61,20 @@ function obtenerEncabezados(sheet) {
   var totalColumnas = sheet.getLastColumn();
   var headers = sheet.getRange(1, 1, 1, totalColumnas).getValues()[0];
   var headersNorm = headers.map(normalizarTexto);
+  // colOpcional: no falla si no encuentra la columna (devuelve -1). Úsala para
+  // campos que no deben tumbar toda la respuesta si a alguien se le borra un
+  // encabezado en el Sheet (ej. precios por canal, marca, género, etc).
+  var colOpcional = function (nombre) {
+    return headersNorm.indexOf(normalizarTexto(nombre));
+  };
+  // col: falla fuerte. Solo para columnas sin las que la app no puede funcionar
+  // en absoluto (el código del producto, o el estado para filtrar categorías).
   var col = function (nombre) {
-    var idx = headersNorm.indexOf(normalizarTexto(nombre));
+    var idx = colOpcional(nombre);
     if (idx === -1) throw new Error('No se encontró la columna: ' + nombre + ' (hoja: ' + sheet.getName() + ', encabezados: ' + headers.join(' | ') + ')');
     return idx;
   };
-  return { headers: headers, headersNorm: headersNorm, totalColumnas: totalColumnas, col: col };
+  return { headers: headers, headersNorm: headersNorm, totalColumnas: totalColumnas, col: col, colOpcional: colOpcional };
 }
 
 // Lee toda la hoja, pero solo hasta la última columna que realmente se usa
@@ -79,7 +87,7 @@ function obtenerDatos() {
   var anchoUtil = idxObservacion === -1 ? info.totalColumnas : idxObservacion + 1;
   var totalFilas = sheet.getLastRow();
   var data = totalFilas > 1 ? sheet.getRange(1, 1, totalFilas, anchoUtil).getValues() : [info.headers];
-  return { data: data, col: info.col };
+  return { data: data, col: info.col, colOpcional: info.colOpcional };
 }
 
 // La app siempre manda el código relleno con ceros a la izquierda hasta 7 dígitos
@@ -90,20 +98,30 @@ function normalizarCodigo(c) {
   return limpio === '' ? '0' : limpio;
 }
 
-function armarProducto(row, col) {
+// Lee un campo de forma tolerante: si la columna no existe (ej. a alguien se le
+// borró el encabezado sin querer), devuelve null en vez de tumbar todo el producto.
+function armarProducto(row, col, colOpcional) {
+  var leer = function (nombre) {
+    var idx = colOpcional(nombre);
+    return idx === -1 ? null : row[idx];
+  };
+  var leerTexto = function (nombre) {
+    var v = leer(nombre);
+    return v === null || v === undefined ? '' : v.toString();
+  };
   return {
     codigo: row[col('Cod 7 texto')].toString().trim().padStart(7, '0'),
-    marca: row[col('Marca')],
-    genero: row[col('GENERO')],
-    tipoProducto: row[col('TIPO PRODUCTO')],
-    proyecto: row[col('Proyecto')],
-    fullPriceRetail: row[col('Full Price Retail')],
-    precioAntes: row[col('Precio Antes')],
-    precioTienda: row[col('Precios Tiendas')],
-    precioOutlet: row[col('Precios Outlet')],
-    precioPiloto: row[col('Precio 30 tiendas')],
-    estatus: row[col('OBSERVACION')].toString(),
-    obsolescencia: row[col('Obsolescencia final')].toString().trim()
+    marca: leer('Marca'),
+    genero: leer('GENERO'),
+    tipoProducto: leer('TIPO PRODUCTO'),
+    proyecto: leer('Proyecto'),
+    fullPriceRetail: leer('Full Price Retail'),
+    precioAntes: leer('Precio Antes'),
+    precioTienda: leer('Precios Tiendas'),
+    precioOutlet: leer('Precios Outlet'),
+    precioPiloto: leer('Precio 30 tiendas'),
+    estatus: leerTexto('OBSERVACION'),
+    obsolescencia: leerTexto('Obsolescencia final').trim()
   };
 }
 
@@ -126,7 +144,7 @@ function buscarCodigo(codigoBuscar) {
   if (!encontrada) return salida({ encontrado: false });
 
   var filaValores = sheet.getRange(encontrada.getRow(), 1, 1, info.totalColumnas).getValues()[0];
-  var resultado = armarProducto(filaValores, info.col);
+  var resultado = armarProducto(filaValores, info.col, info.colOpcional);
   resultado.encontrado = true;
   return salida(resultado);
 }
@@ -141,7 +159,7 @@ var SINONIMOS_CATEGORIA = {
 
 function listarCategoria(categoria) {
   var info = obtenerDatos();
-  var data = info.data, col = info.col;
+  var data = info.data, col = info.col, colOpcional = info.colOpcional;
   var idxEstatus = col('OBSERVACION');
   var candidatos = (SINONIMOS_CATEGORIA[categoria] || [categoria]).map(normalizarTexto);
   var items = [];
@@ -150,7 +168,7 @@ function listarCategoria(categoria) {
     var estatus = normalizarTexto(data[i][idxEstatus] || '');
     var coincide = candidatos.some(function (c) { return estatus.indexOf(c) !== -1; });
     if (coincide) {
-      items.push(armarProducto(data[i], col));
+      items.push(armarProducto(data[i], col, colOpcional));
     }
   }
   return salida({ encontrado: true, items: items });

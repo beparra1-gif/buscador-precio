@@ -1,12 +1,10 @@
-// 🚨 REEMPLAZA ESTA URL POR TU URL DE GOOGLE APPS SCRIPT
-const urlAPI = "https://script.google.com/macros/s/AKfycby6lSF6gjJWTF8UVqFW16vARSORJH-kVPWo4z8VbQnPM7pDAir3PxvtP62-Oylfbg8U/exec";
+const urlAPI = "https://script.google.com/macros/s/AKfycbz3mu3U_1YyCILkGQOGrj3R6J0cIX0AdFZfEcMtU2c5nbbAXJRuwWiEewbi4W-mhKxQrQ/exec";
 
 const FETCH_TIMEOUT_MS = 15000;
 
 let html5QrcodeScanner = null;
 let currentViewMode = 'list';
 let audioCtx = null;
-let waMarca = "", waDesc = "", waPrecioAntes = "", waPrecioActual = "", waCodigo = "";
 
 let itemsGlobales = [];
 let categoriaActual = '';
@@ -59,6 +57,19 @@ function calcularDescuentoCanal(precioBase, precioCanal) {
     return pct > 0 ? pct : 0;
 }
 
+// Compara el precio del canal elegido contra el Precio Inicial (Full Price Retail).
+// El estado de alza/baja se calcula del precio real de CADA canal, no del texto
+// genérico de OBSERVACION (que es un solo valor por producto, no por canal) —
+// así un canal puede marcar alza aunque el estatus general diga "se mantiene".
+function compararPrecioCanal(precioBase, precioCanal) {
+    const base = parseInt((precioBase || '').toString().replace(/\D/g, ''), 10);
+    const canal = parseInt((precioCanal || '').toString().replace(/\D/g, ''), 10);
+    if (!base || isNaN(base) || isNaN(canal)) return { tipo: 'igual', pct: 0 };
+    if (canal > base) return { tipo: 'alza', pct: Math.round((canal - base) / base * 100) };
+    if (canal < base) return { tipo: 'baja', pct: Math.round((base - canal) / base * 100) };
+    return { tipo: 'igual', pct: 0 };
+}
+
 // Normaliza la columna "Obsolescencia final" (50, 100 o vacío) a '50' | '100' | ''
 function obtenerNivelObsolescencia(valor) {
     if (valor === undefined || valor === null) return '';
@@ -79,6 +90,13 @@ function renderObsolescenciaAlert(nivel) {
 function renderObsolescenciaBadge(nivel) {
     if (!nivel) return '';
     return `<span class="item-badge-obsolescencia nivel-${nivel}"><span class="obs-dot"></span>Obs. ${nivel}%</span>`;
+}
+
+// Muestra el código de 7 dígitos con guión tras el 3ro (ej. 8811970 -> 881-1970,
+// 23456 -> 0023456 -> 002-3456), solo para el título del detalle del producto.
+function formatearCodigoConGuion(codigo) {
+    const c = (codigo || '').toString().trim().padStart(7, '0');
+    return c.slice(0, 3) + '-' + c.slice(3);
 }
 
 const formatearMoneda = (valor) => {
@@ -199,14 +217,6 @@ function cargarRecientes() {
     list.innerHTML = recents.map(c => `<div class="chip-recent" onclick="procesarCodigo('${c}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> ${c}</div>`).join('');
 }
 
-function compartirWhatsApp() {
-    let text = `🔥 ¡Mira esta oportunidad!\n\n👟 *${waMarca}* (Cód: ${waCodigo})\n`;
-    if(waDesc && waDesc !== '0') text += `📉 Descuento: -${waDesc}%\n`;
-    if(waPrecioAntes && waPrecioAntes !== '--') text += `❌ Antes: ${waPrecioAntes}\n`;
-    text += `✅ *Ahora: ${waPrecioActual}*\n\n¡Te esperamos en la tienda!`;
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-}
-
 async function procesarCodigo(codDirecto = null) {
     let codigo = codDirecto || document.getElementById('codigoInput').value.trim();
     if(!codigo) return mostrarToast("Ingrese o escanee un código válido", 'error');
@@ -224,32 +234,31 @@ async function procesarCodigo(codDirecto = null) {
         if(data.encontrado) {
             guardarReciente(codigo);
 
-            document.getElementById('tituloProducto').innerText = data.codigo || '--';
+            document.getElementById('tituloProducto').innerText = formatearCodigoConGuion(data.codigo || codigo);
 
             document.getElementById('outMarca').innerText = data.marca || '--';
             document.getElementById('outGenero').innerText = data.genero || '--';
             document.getElementById('outTipoProd').innerText = data.tipoProducto || '--';
             document.getElementById('outProyecto').innerText = (data.proyecto && data.proyecto.toString().trim() !== "") ? data.proyecto : '--';
 
-            waMarca = data.marca || 'Producto';
-            waCodigo = data.codigo || codigo;
-
             const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
             const precioBase = valorConFallback(data, 'fullPriceRetail', 'precioInicial');
             const precioCanal = valorConFallback(data, campoPrecio, 'nuevoPrecio');
-            waPrecioActual = formatearMoneda(precioCanal);
+            const precioActualTexto = formatearMoneda(precioCanal);
 
-            const numDesc = calcularDescuentoCanal(precioBase, precioCanal);
-            waDesc = numDesc;
+            // El alza/baja se calcula del precio real del canal elegido vs el Precio
+            // Inicial, no del texto de OBSERVACION (que es un solo valor por producto,
+            // no varía según el canal que el usuario está mirando).
+            const comparacion = compararPrecioCanal(precioBase, precioCanal);
+            const numDesc = comparacion.tipo === 'baja' ? comparacion.pct : 0;
 
             const pContainer = document.getElementById('priceContainerDynamic');
             pContainer.innerHTML = '';
-            const estatus = data.estatus || '';
 
             const labelCanal = `<div style="text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:600; letter-spacing:0.5px; margin-bottom:6px;">Precio ${LABEL_TIENDA[tiendaActual] || ''}</div>`;
 
-            if (estatus.includes('SUBE') || estatus.includes('AUMENTA')) {
-                waPrecioAntes = formatearMoneda(data.precioAntes);
+            if (comparacion.tipo === 'alza') {
+                const precioAntesTexto = formatearMoneda(data.precioAntes);
                 pContainer.innerHTML = `
                     ${labelCanal}
                     <div class="price-container">
@@ -260,15 +269,15 @@ async function procesarCodigo(codDirecto = null) {
                             </div>
                             <div class="price-alza-item">
                                 <span class="price-label">Precio Antes</span>
-                                <span style="font-weight: 600; color: var(--text-main);">${waPrecioAntes}</span>
+                                <span style="font-weight: 600; color: var(--text-main);">${precioAntesTexto}</span>
                             </div>
                         </div>
-                        <div class="price-label" style="color: var(--accent-red); font-weight: bold;">⚠️ Novedad: Alza de Precio</div>
-                        <div class="price-actual alert-red">${waPrecioActual}</div>
+                        <div class="price-label" style="color: var(--accent-red); font-weight: bold;">⚠️ Novedad: Alza de Precio +${comparacion.pct}%</div>
+                        <div class="price-actual alert-red">${precioActualTexto}</div>
                     </div>
                 `;
-            } else if (estatus.includes('BAJA') || estatus.includes('DISMINUYE') || numDesc > 0) {
-                waPrecioAntes = formatearMoneda(data.precioAntes);
+            } else if (comparacion.tipo === 'baja') {
+                const precioAntesTexto = formatearMoneda(data.precioAntes);
                 pContainer.innerHTML = `
                     ${labelCanal}
                     <div class="price-container">
@@ -280,15 +289,14 @@ async function procesarCodigo(codDirecto = null) {
                             </div>
                             <div class="price-alza-item">
                                 <span class="price-label">Precio Antes</span>
-                                <span style="color: var(--text-muted); text-decoration: line-through;">${waPrecioAntes}</span>
+                                <span style="color: var(--text-muted); text-decoration: line-through;">${precioAntesTexto}</span>
                             </div>
                         </div>
                         <div class="price-label" style="margin-top: 10px;">Precio Actual</div>
-                        <div class="price-actual">${waPrecioActual}</div>
+                        <div class="price-actual">${precioActualTexto}</div>
                     </div>
                 `;
             } else {
-                waPrecioAntes = "";
                 pContainer.innerHTML = `
                     ${labelCanal}
                     <div class="price-container">
@@ -303,7 +311,7 @@ async function procesarCodigo(codDirecto = null) {
                             </div>
                         </div>
                         <div class="price-label">Precio Actual</div>
-                        <div class="price-actual" style="color: var(--primary);">${waPrecioActual}</div>
+                        <div class="price-actual" style="color: var(--primary);">${precioActualTexto}</div>
                         <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">Sin variaciones recientes</div>
                     </div>
                 `;
