@@ -71,9 +71,14 @@ function obtenerNivelObsolescencia(valor) {
 function renderObsolescenciaAlert(nivel) {
     if (!nivel) return '';
     const mensaje = nivel === '100'
-        ? '🔴 Obsolescencia 100% — producto descontinuado'
-        : '⚠️ Obsolescencia 50% — posible descontinuación';
-    return `<div class="obsolescencia-alert nivel-${nivel}">${mensaje}</div>`;
+        ? 'Obsolescencia 100% — producto descontinuado'
+        : 'Obsolescencia 50% — posible descontinuación';
+    return `<div class="obsolescencia-alert nivel-${nivel}"><span class="obs-dot"></span><span>${mensaje}</span></div>`;
+}
+
+function renderObsolescenciaBadge(nivel) {
+    if (!nivel) return '';
+    return `<span class="item-badge-obsolescencia nivel-${nivel}"><span class="obs-dot"></span>Obs. ${nivel}%</span>`;
 }
 
 const formatearMoneda = (valor) => {
@@ -484,7 +489,7 @@ function renderizarItems(items) {
 
         const nivelObs = obtenerNivelObsolescencia(item.obsolescencia);
         const claseObs = nivelObs ? ` obsolescencia-${nivelObs}` : '';
-        const badgeObs = nivelObs ? `<span class="item-badge-obsolescencia nivel-${nivelObs}">Obs. ${nivelObs}%</span>` : '';
+        const badgeObs = renderObsolescenciaBadge(nivelObs);
 
         const card = document.createElement('div');
         card.className = 'item-card' + claseObs;

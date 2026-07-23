@@ -76,17 +76,23 @@ h2 { text-align: center; color: var(--text-main); margin-top: 0; margin-bottom: 
 .info-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 .info-label { font-weight: 600; color: var(--text-main); }
 
-/* Alertas de obsolescencia */
-.obsolescencia-alert { border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: 700; text-align: center; margin-bottom: 15px; border: 1px solid transparent; }
+/* Alertas de obsolescencia: etiqueta con círculo de color, legible y adaptable */
+.obsolescencia-alert { display: flex; align-items: center; gap: 10px; border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: 700; text-align: left; margin-bottom: 15px; border: 1px solid transparent; line-height: 1.35; word-break: break-word; }
+.obsolescencia-alert .obs-dot { width: 12px; height: 12px; min-width: 12px; border-radius: 50%; }
 .obsolescencia-alert.nivel-50 { background: var(--obs-50-bg); color: var(--obs-50); border-color: var(--obs-50-border); }
+.obsolescencia-alert.nivel-50 .obs-dot { background: var(--obs-50); }
 .obsolescencia-alert.nivel-100 { background: var(--obs-100-bg); color: var(--obs-100); border-color: var(--obs-100-border); }
+.obsolescencia-alert.nivel-100 .obs-dot { background: var(--obs-100); box-shadow: 0 0 0 4px var(--obs-100-border); }
 
 .info-box.obsolescencia-50 { border-left: 4px solid var(--obs-50); }
 .info-box.obsolescencia-100 { border-left: 4px solid var(--obs-100); }
 
-.item-badge-obsolescencia { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
+.item-badge-obsolescencia { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; white-space: nowrap; }
+.item-badge-obsolescencia .obs-dot { width: 7px; height: 7px; min-width: 7px; border-radius: 50%; }
 .item-badge-obsolescencia.nivel-50 { background: var(--obs-50-bg); color: var(--obs-50); }
+.item-badge-obsolescencia.nivel-50 .obs-dot { background: var(--obs-50); }
 .item-badge-obsolescencia.nivel-100 { background: var(--obs-100-bg); color: var(--obs-100); }
+.item-badge-obsolescencia.nivel-100 .obs-dot { background: var(--obs-100); box-shadow: 0 0 0 3px var(--obs-100-border); }
 .product-img { width: 100%; max-width: 160px; height: 160px; background: white; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center; border-radius: 12px; color: #aaa; font-size: 12px; border: 1px solid var(--border-light); overflow: hidden; }
 
 .price-container { margin: 20px 0; border: 1px solid var(--border-light); border-radius: 12px; padding: 20px; text-align: center; background: white; }
@@ -119,8 +125,8 @@ h2 { text-align: center; color: var(--text-main); margin-top: 0; margin-bottom: 
 .item-card.obsolescencia-50 { border-left: 4px solid var(--obs-50); }
 .item-card.obsolescencia-100 { border-left: 4px solid var(--obs-100); }
 
-.item-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px; }
-.item-code { font-weight: 700; color: var(--text-main); font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.item-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px; flex-wrap: wrap; }
+.item-code { font-weight: 700; color: var(--text-main); font-size: 15px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .item-discount { font-size: 11px; color: white; background-color: var(--primary); font-weight: 600; padding: 2px 6px; border-radius: 4px; }
 
 .item-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }

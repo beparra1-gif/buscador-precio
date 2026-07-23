@@ -5,13 +5,14 @@ PWA (Progressive Web App) para consultar precios y catálogo por código de prod
 ## Estructura
 
 ```
-index.html    Estructura de las 3 pantallas (buscador, detalle, listado)
-style.css     Estilos
-app.js        Lógica de la app (fetch a la API, render, escáner, toasts)
-manifest.json Metadata de instalación como PWA
-sw.js         Service worker: cachea el app shell para uso offline
-icons/        Íconos de la PWA
-fotos/        Fotos de producto por código (ej. 0012345.jpg)
+index.html          Estructura de las 3 pantallas (buscador, detalle, listado)
+style.css           Estilos
+app.js              Lógica de la app (fetch a la API, render, escáner, toasts)
+manifest.json       Metadata de instalación como PWA
+sw.js               Service worker: cachea el app shell para uso offline
+icons/              Íconos de la PWA
+fotos/              Fotos de producto por código (ej. 0012345.jpg)
+apps-script/Codigo.gs  Copia de referencia del backend de Google Apps Script (ver abajo)
 ```
 
 ## Cómo correrla localmente
@@ -30,6 +31,8 @@ La URL del Google Apps Script que sirve los datos está en `app.js` (constante `
 
 - `?action=buscarCodigo&codigo=XXXXXXX` → detalle de un producto
 - `?action=listarCategoria&categoria=SUBE|BAJA|MANTIENE` → listado por categoría
+
+El código fuente de ese backend vive en Google Apps Script (fuera de este repo), no aquí. [`apps-script/Codigo.gs`](apps-script/Codigo.gs) es una **copia de referencia** para tenerlo versionado — pero **no se despliega solo**; cada vez que lo cambies, tienes que copiarlo y pegarlo manualmente en el editor de Apps Script (Extensiones → Apps Script desde el Sheet) y volver a implementar (Implementar → Administrar implementaciones → ✏️ → Nueva versión → Implementar). Si editas el script directo en Apps Script, trae la copia de vuelta a este archivo para que no queden desincronizados.
 
 ### Contrato de datos (campos que debe devolver el Apps Script)
 
