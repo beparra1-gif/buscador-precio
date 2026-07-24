@@ -160,15 +160,29 @@ var SINONIMOS_CATEGORIA = {
 function listarCategoria(categoria) {
   var info = obtenerDatos();
   var data = info.data, col = info.col, colOpcional = info.colOpcional;
-  var idxEstatus = col('OBSERVACION');
-  var candidatos = (SINONIMOS_CATEGORIA[categoria] || [categoria]).map(normalizarTexto);
   var items = [];
 
-  for (var i = 1; i < data.length; i++) {
-    var estatus = normalizarTexto(data[i][idxEstatus] || '');
+  // Categoría especial: no filtra por OBSERVACION sino por la columna
+  // "Obsolescencia final" (solo productos marcados 50 o 100).
+  if (categoria === 'OBSOLESCENCIA') {
+    var idxObs = colOpcional('Obsolescencia final');
+    for (var i = 1; i < data.length; i++) {
+      var valObs = idxObs === -1 ? '' : (data[i][idxObs] || '').toString().trim();
+      if (valObs === '50' || valObs === '100') {
+        items.push(armarProducto(data[i], col, colOpcional));
+      }
+    }
+    return salida({ encontrado: true, items: items });
+  }
+
+  var idxEstatus = col('OBSERVACION');
+  var candidatos = (SINONIMOS_CATEGORIA[categoria] || [categoria]).map(normalizarTexto);
+
+  for (var j = 1; j < data.length; j++) {
+    var estatus = normalizarTexto(data[j][idxEstatus] || '');
     var coincide = candidatos.some(function (c) { return estatus.indexOf(c) !== -1; });
     if (coincide) {
-      items.push(armarProducto(data[i], col, colOpcional));
+      items.push(armarProducto(data[j], col, colOpcional));
     }
   }
   return salida({ encontrado: true, items: items });

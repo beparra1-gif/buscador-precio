@@ -371,7 +371,11 @@ async function cargarLista(categoria, tituloHumanizado) {
     document.getElementById('loading').style.display = "block";
     document.getElementById('tituloLista').innerText = tituloHumanizado;
     document.getElementById('listaContenedor').innerHTML = '';
+    document.getElementById('filterPrecio').value = 'ALL';
+    document.getElementById('filterDescuento').value = 'ALL';
     categoriaActual = categoria;
+    // Exportar a PDF solo tiene sentido para Alzas/Bajas (no para Sin Cambios ni Obsolescencia)
+    document.getElementById('btnExportarPDF').style.display = (categoria === 'SUBE' || categoria === 'BAJA') ? 'flex' : 'none';
 
     try {
         const data = await fetchConTimeout(`${urlAPI}?action=listarCategoria&categoria=${categoria}`);
@@ -419,16 +423,56 @@ function poblarFiltros(items) {
     fTipo.innerHTML = '<option value="ALL">Todos los Tipos</option>' + Array.from(setTipos).sort().map(t => `<option value="${t}">${t}</option>`).join('');
 }
 
+// Bucket de precio para el filtro "Rango de Precio" (usa el precio del canal activo)
+function obtenerRangoPrecio(valor) {
+    const n = parseInt((valor || '').toString().replace(/\D/g, ''), 10);
+    if (isNaN(n)) return null;
+    if (n < 10000) return 'p1';
+    if (n < 20000) return 'p2';
+    if (n < 30000) return 'p3';
+    if (n < 50000) return 'p4';
+    return 'p5';
+}
+
+// Bucket de % de descuento para el filtro "Nivel de Descuento" (0 si no hay baja)
+function obtenerRangoDescuento(pct) {
+    if (!pct || pct <= 0) return 'd0';
+    if (pct <= 10) return 'd1';
+    if (pct <= 25) return 'd2';
+    if (pct <= 50) return 'd3';
+    return 'd4';
+}
+
 function aplicarFiltros() {
     const vMarca = document.getElementById('filterMarca').value;
     const vGenero = document.getElementById('filterGenero').value;
     const vTipo = document.getElementById('filterTipo').value;
+    const vPrecio = document.getElementById('filterPrecio').value;
+    const vDescuento = document.getElementById('filterDescuento').value;
+
+    const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
 
     const filtrados = itemsGlobales.filter(item => {
         const pasaMarca = vMarca === "ALL" || item.marca === vMarca;
         const pasaGenero = vGenero === "ALL" || item.genero === vGenero;
         const pasaTipo = vTipo === "ALL" || item.tipoProducto === vTipo;
-        return pasaMarca && pasaGenero && pasaTipo;
+
+        let pasaPrecio = true;
+        if (vPrecio !== 'ALL') {
+            const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
+            pasaPrecio = obtenerRangoPrecio(precioCanal) === vPrecio;
+        }
+
+        let pasaDescuento = true;
+        if (vDescuento !== 'ALL') {
+            const precioBase = valorConFallback(item, 'fullPriceRetail', 'precioInicial');
+            const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
+            const comparacion = compararPrecioCanal(precioBase, precioCanal);
+            const pct = comparacion.tipo === 'baja' ? comparacion.pct : 0;
+            pasaDescuento = obtenerRangoDescuento(pct) === vDescuento;
+        }
+
+        return pasaMarca && pasaGenero && pasaTipo && pasaPrecio && pasaDescuento;
     });
 
     itemsFiltrados = filtrados;
@@ -492,7 +536,7 @@ function renderizarItems(items) {
         const numDesc = calcularDescuentoCanal(precioBase, precioCanal);
 
         let badgeHtml = '';
-        if (categoriaActual === 'BAJA' && numDesc > 0) badgeHtml = `<div class="item-discount">-${numDesc}%</div>`;
+        if ((categoriaActual === 'BAJA' || categoriaActual === 'OBSOLESCENCIA') && numDesc > 0) badgeHtml = `<div class="item-discount">-${numDesc}%</div>`;
         if (categoriaActual === 'SUBE') badgeHtml = `<div style="font-size: 11px; color: var(--accent-red); font-weight: 600;">⚠️ Alza</div>`;
 
         const nivelObs = obtenerNivelObsolescencia(item.obsolescencia);
@@ -540,5 +584,117 @@ function toggleViewMode() {
         cont.classList.remove('grid-view');
         cont.classList.add('list-view');
         currentViewMode = 'list';
+    }
+}
+
+// Con fotos de miles de productos, generar el PDF en el navegador se vuelve
+// lento y puede colgar el celular — por eso hay un tope y se pide filtrar más.
+const LIMITE_EXPORTACION_PDF = 150;
+
+async function cargarImagenComoDataURL(url) {
+    try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        return await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        return null;
+    }
+}
+
+async function cargarImagenProducto(codigo) {
+    let img = await cargarImagenComoDataURL(`./fotos/${codigo}.jpg`);
+    if (!img) img = await cargarImagenComoDataURL(`./fotos/${codigo}.JPG`);
+    return img;
+}
+
+async function exportarListadoPDF() {
+    if (categoriaActual !== 'SUBE' && categoriaActual !== 'BAJA') {
+        return mostrarToast('La exportación solo está disponible para Alzas o Bajas de Precio.', 'error');
+    }
+    if (itemsFiltrados.length === 0) {
+        return mostrarToast('No hay productos para exportar.', 'error');
+    }
+    if (itemsFiltrados.length > LIMITE_EXPORTACION_PDF) {
+        return mostrarToast(`Hay ${itemsFiltrados.length} productos — no es posible cargar tantas fotos a la vez. El máximo para exportar es ${LIMITE_EXPORTACION_PDF}. Aplica más filtros (marca, género, precio) para reducir la cantidad.`, 'error');
+    }
+    if (typeof window.jspdf === 'undefined') {
+        return mostrarToast('No se pudo cargar el generador de PDF. Revise su conexión e intente de nuevo.', 'error');
+    }
+
+    document.getElementById('loading').style.display = 'block';
+    mostrarToast('Generando PDF, esto puede tardar unos segundos...', 'info');
+
+    try {
+        const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
+        const codigos = itemsFiltrados.map(item => item.codigo ? item.codigo.toString().padStart(7, '0') : '');
+        const imagenes = await Promise.all(codigos.map(cod => cargarImagenProducto(cod)));
+
+        const filas = itemsFiltrados.map((item, i) => {
+            const precioBase = valorConFallback(item, 'fullPriceRetail', 'precioInicial');
+            const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
+            const comparacion = compararPrecioCanal(precioBase, precioCanal);
+            const pctTexto = comparacion.tipo === 'alza' ? `+${comparacion.pct}%` : comparacion.tipo === 'baja' ? `-${comparacion.pct}%` : '--';
+            return {
+                foto: imagenes[i],
+                fila: [
+                    '',
+                    formatearCodigoConGuion(codigos[i]),
+                    item.marca || '--',
+                    item.genero || '--',
+                    item.tipoProducto || '--',
+                    formatearMoneda(precioBase),
+                    formatearMoneda(item.precioAntes),
+                    pctTexto,
+                    formatearMoneda(precioCanal)
+                ]
+            };
+        });
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
+
+        const tituloLista = categoriaActual === 'SUBE' ? 'Alzas de Precio' : 'Bajas de Precio';
+        doc.setFontSize(14);
+        doc.text(`${tituloLista} — ${LABEL_TIENDA[tiendaActual] || ''}`, 40, 30);
+
+        doc.autoTable({
+            head: [['Foto', 'Código', 'Marca', 'Género', 'Tipo Producto', 'Precio Inicial', 'Precio Antes', '% Variación', 'Precio Final']],
+            body: filas.map(f => f.fila),
+            startY: 45,
+            styles: { fontSize: 8, cellPadding: 4, valign: 'middle', minCellHeight: 36 },
+            columnStyles: { 0: { cellWidth: 36 } },
+            didDrawCell: (data) => {
+                if (data.section === 'body' && data.column.index === 0) {
+                    const img = filas[data.row.index] && filas[data.row.index].foto;
+                    if (img) {
+                        const dim = Math.min(data.cell.height, data.cell.width) - 6;
+                        try {
+                            doc.addImage(img, data.cell.x + 3, data.cell.y + (data.cell.height - dim) / 2, dim, dim);
+                        } catch (e) { /* foto corrupta o formato no soportado: se deja el espacio vacío */ }
+                    }
+                }
+            }
+        });
+
+        const nombreArchivo = `${categoriaActual === 'SUBE' ? 'alzas' : 'bajas'}-de-precio-${(tiendaActual || 'tienda')}.pdf`;
+        const pdfBlob = doc.output('blob');
+
+        const pdfFile = new File([pdfBlob], nombreArchivo, { type: 'application/pdf' });
+        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+            await navigator.share({ files: [pdfFile], title: tituloLista });
+        } else {
+            doc.save(nombreArchivo);
+        }
+    } catch (e) {
+        console.error(e);
+        mostrarToast('Ocurrió un error al generar el PDF.', 'error');
+    } finally {
+        document.getElementById('loading').style.display = 'none';
     }
 }

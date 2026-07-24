@@ -30,7 +30,7 @@ python -m http.server 8080
 La URL del Google Apps Script que sirve los datos está en `app.js` (constante `urlAPI`). El backend debe exponer:
 
 - `?action=buscarCodigo&codigo=XXXXXXX` → detalle de un producto
-- `?action=listarCategoria&categoria=SUBE|BAJA|MANTIENE` → listado por categoría
+- `?action=listarCategoria&categoria=SUBE|BAJA|MANTIENE|OBSOLESCENCIA` → listado por categoría (`OBSOLESCENCIA` filtra por la columna "Obsolescencia final" = 50 o 100, no por OBSERVACION)
 
 El código fuente de ese backend vive en Google Apps Script (fuera de este repo), no aquí. [`apps-script/Codigo.gs`](apps-script/Codigo.gs) es una **copia de referencia** para tenerlo versionado — pero **no se despliega solo**; cada vez que lo cambies, tienes que copiarlo y pegarlo manualmente en el editor de Apps Script (Extensiones → Apps Script desde el Sheet) y volver a implementar (Implementar → Administrar implementaciones → ✏️ → Nueva versión → Implementar). Si editas el script directo en Apps Script, trae la copia de vuelta a este archivo para que no queden desincronizados.
 
@@ -58,6 +58,10 @@ En Apps Script, donde arman el objeto de respuesta (algo como `{ codigo: row[0],
 ### Selector de tipo de tienda
 
 Al abrir la app por primera vez, se pide elegir el canal (Estándar / Outlet / Piloto 30 Tiendas). La elección se guarda en `localStorage` (`tiendaSeleccionada`) y se reutiliza en visitas futuras; se puede cambiar en cualquier momento tocando el chip que aparece arriba del buscador. Todos los precios mostrados (detalle y listados) corresponden al canal activo.
+
+### Exportar a PDF
+
+Los listados de **Alzas de Precio** y **Bajas de Precio** (no "Sin Cambios" ni "Obsolescencia") tienen un botón "Exportar PDF" que genera un PDF tamaño carta con foto, código, marca, género, tipo de producto, precio inicial, precio antes, % de variación y precio final — respetando los filtros aplicados en ese momento. Usa `jsPDF` + `jspdf-autotable` cargados por CDN en `index.html`. Por rendimiento (cargar cientos de fotos en el navegador es lento/pesado, sobre todo en el celular), hay un tope de `LIMITE_EXPORTACION_PDF` (150) productos en `app.js`; si se supera, se le pide al usuario filtrar más en vez de intentar exportar igual.
 
 ## Al desplegar un cambio
 
