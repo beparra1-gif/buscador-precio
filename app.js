@@ -14,8 +14,8 @@ let paginaActual = 1;
 const itemsPorPagina = 50;
 
 // Canal de tienda: define qué columna de precio del Sheet se usa en toda la app
-const CAMPO_PRECIO_CANAL = { estandar: 'precioTienda', outlet: 'precioOutlet', piloto: 'precioPiloto' };
-const LABEL_TIENDA = { estandar: 'Tienda Estándar', outlet: 'Outlet', piloto: 'Piloto 30 Tiendas' };
+const CAMPO_PRECIO_CANAL = { estandar: 'precioTienda', outlet: 'precioOutlet' };
+const LABEL_TIENDA = { estandar: 'Tienda Estándar', outlet: 'Outlet' };
 let tiendaActual = localStorage.getItem('tiendaSeleccionada') || null;
 
 if ('serviceWorker' in navigator) {
@@ -378,7 +378,7 @@ async function cargarLista(categoria, tituloHumanizado) {
     document.getElementById('btnExportarPDF').style.display = (categoria === 'SUBE' || categoria === 'BAJA') ? 'flex' : 'none';
 
     try {
-        const data = await fetchConTimeout(`${urlAPI}?action=listarCategoria&categoria=${categoria}`);
+        const data = await fetchConTimeout(`${urlAPI}?action=listarCategoria&categoria=${categoria}&tienda=${tiendaActual}`);
         document.getElementById('loading').style.display = "none";
 
         if (data.encontrado && data.items && data.items.length > 0) {

@@ -15,7 +15,7 @@ function doGet(e) {
     return debugHojas();
   }
   if (accion === 'listarCategoria') {
-    return listarCategoria(e.parameter.categoria);
+    return listarCategoria(e.parameter.categoria, e.parameter.tienda);
   }
   // Por defecto (o accion === 'buscarCodigo'): buscar por código
   return buscarCodigo(e.parameter.codigo);
@@ -77,14 +77,24 @@ function obtenerEncabezados(sheet) {
   return { headers: headers, headersNorm: headersNorm, totalColumnas: totalColumnas, col: col, colOpcional: colOpcional };
 }
 
+// Columnas que la app realmente necesita. Se usan para no leer más ancho de
+// hoja del que hace falta (evita traer W4/W3/W2/W1 y otras columnas sin uso).
+var CAMPOS_REQUERIDOS = [
+  'Cod 7 texto', 'Marca', 'GENERO', 'TIPO PRODUCTO', 'Proyecto',
+  'Full Price Retail', 'Precio Antes', 'Nuevo Precio Final', 'Precios Outlet', 'Precio 30 tiendas',
+  'Obsolescencia final', 'OBSERVACION STANDAR', 'OBSERVACION OUTLET'
+];
+
 // Lee toda la hoja, pero solo hasta la última columna que realmente se usa
-// (evita traer W4/W3/W2/W1 y otras columnas sin uso, que igual pesan en cada lectura).
+// (calculado a partir de CAMPOS_REQUERIDOS, sin asumir un orden fijo).
 function obtenerDatos() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = encontrarHojaBase(ss);
   var info = obtenerEncabezados(sheet);
-  var idxObservacion = info.headersNorm.indexOf(normalizarTexto('OBSERVACION'));
-  var anchoUtil = idxObservacion === -1 ? info.totalColumnas : idxObservacion + 1;
+  var indices = CAMPOS_REQUERIDOS
+    .map(function (nombre) { return info.headersNorm.indexOf(normalizarTexto(nombre)); })
+    .filter(function (idx) { return idx !== -1; });
+  var anchoUtil = indices.length > 0 ? Math.max.apply(null, indices) + 1 : info.totalColumnas;
   var totalFilas = sheet.getLastRow();
   var data = totalFilas > 1 ? sheet.getRange(1, 1, totalFilas, anchoUtil).getValues() : [info.headers];
   return { data: data, col: info.col, colOpcional: info.colOpcional };
@@ -117,10 +127,9 @@ function armarProducto(row, col, colOpcional) {
     proyecto: leer('Proyecto'),
     fullPriceRetail: leer('Full Price Retail'),
     precioAntes: leer('Precio Antes'),
-    precioTienda: leer('Precios Tiendas'),
+    precioTienda: leer('Nuevo Precio Final'),
     precioOutlet: leer('Precios Outlet'),
     precioPiloto: leer('Precio 30 tiendas'),
-    estatus: leerTexto('OBSERVACION'),
     obsolescencia: leerTexto('Obsolescencia final').trim()
   };
 }
@@ -149,7 +158,7 @@ function buscarCodigo(codigoBuscar) {
   return salida(resultado);
 }
 
-// La columna OBSERVACION usa palabras distintas a los botones de la app
+// Las columnas de observación usan palabras distintas a los botones de la app
 // (ej. "DISMINUYE" en vez de "BAJA"), así que cada categoría acepta sinónimos.
 var SINONIMOS_CATEGORIA = {
   SUBE: ['SUBE', 'AUMENTA'],
@@ -157,13 +166,20 @@ var SINONIMOS_CATEGORIA = {
   MANTIENE: ['MANTIENE']
 };
 
-function listarCategoria(categoria) {
+// Cada canal tiene su propia columna de observación (antes había una sola
+// columna genérica; ahora Estándar y Outlet se evalúan por separado, así
+// que "sube/baja/mantiene" puede diferir entre canales para el mismo producto).
+function columnaObservacionPorTienda(tienda) {
+  return tienda === 'outlet' ? 'OBSERVACION OUTLET' : 'OBSERVACION STANDAR';
+}
+
+function listarCategoria(categoria, tienda) {
   var info = obtenerDatos();
   var data = info.data, col = info.col, colOpcional = info.colOpcional;
   var items = [];
 
-  // Categoría especial: no filtra por OBSERVACION sino por la columna
-  // "Obsolescencia final" (solo productos marcados 50 o 100).
+  // Categoría especial: no filtra por observación de canal sino por la
+  // columna "Obsolescencia final" (solo productos marcados 50 o 100).
   if (categoria === 'OBSOLESCENCIA') {
     var idxObs = colOpcional('Obsolescencia final');
     for (var i = 1; i < data.length; i++) {
@@ -175,7 +191,7 @@ function listarCategoria(categoria) {
     return salida({ encontrado: true, items: items });
   }
 
-  var idxEstatus = col('OBSERVACION');
+  var idxEstatus = col(columnaObservacionPorTienda(tienda));
   var candidatos = (SINONIMOS_CATEGORIA[categoria] || [categoria]).map(normalizarTexto);
 
   for (var j = 1; j < data.length; j++) {

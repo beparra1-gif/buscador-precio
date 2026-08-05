@@ -30,26 +30,25 @@ python -m http.server 8080
 La URL del Google Apps Script que sirve los datos está en `app.js` (constante `urlAPI`). El backend debe exponer:
 
 - `?action=buscarCodigo&codigo=XXXXXXX` → detalle de un producto
-- `?action=listarCategoria&categoria=SUBE|BAJA|MANTIENE|OBSOLESCENCIA` → listado por categoría (`OBSOLESCENCIA` filtra por la columna "Obsolescencia final" = 50 o 100, no por OBSERVACION)
+- `?action=listarCategoria&categoria=SUBE|BAJA|MANTIENE|OBSOLESCENCIA&tienda=estandar|outlet` → listado por categoría. `OBSOLESCENCIA` filtra por la columna "Obsolescencia final" (= 50 o 100), ignora `tienda`. Las demás categorías filtran por `OBSERVACION STANDAR` u `OBSERVACION OUTLET` según el valor de `tienda` — el estado sube/baja/mantiene puede ser distinto entre canales para el mismo producto.
 
 El código fuente de ese backend vive en Google Apps Script (fuera de este repo), no aquí. [`apps-script/Codigo.gs`](apps-script/Codigo.gs) es una **copia de referencia** para tenerlo versionado — pero **no se despliega solo**; cada vez que lo cambies, tienes que copiarlo y pegarlo manualmente en el editor de Apps Script (Extensiones → Apps Script desde el Sheet) y volver a implementar (Implementar → Administrar implementaciones → ✏️ → Nueva versión → Implementar). Si editas el script directo en Apps Script, trae la copia de vuelta a este archivo para que no queden desincronizados.
 
 ### Contrato de datos (campos que debe devolver el Apps Script)
 
-La app trabaja con 3 canales de precio (el usuario elige uno al entrar: Tienda Estándar / Outlet / Piloto 30 Tiendas) y calcula el % de descuento en el frontend contra el precio base. Cada producto (tanto en `buscarCodigo` como en cada item de `listarCategoria`) debe incluir estos campos, mapeados desde las columnas de la hoja **BASE PRECIOS**:
+La app trabaja con 2 canales de precio (el usuario elige uno al entrar: Tienda Estándar / Outlet) y calcula el % de descuento en el frontend contra el precio base. Cada producto (tanto en `buscarCodigo` como en cada item de `listarCategoria`) debe incluir estos campos, mapeados desde las columnas de la hoja **BASE PRECIOS**:
 
 | Campo JSON        | Columna del Sheet     | Uso |
 |--------------------|------------------------|-----|
 | `fullPriceRetail`  | Full Price Retail      | Precio base para calcular el % de descuento de cada canal |
 | `precioAntes`      | Precio Antes            | Se muestra como referencia tachada junto al precio base |
-| `precioTienda`     | Precios Tiendas         | Precio cuando el usuario elige "Tienda Estándar" |
+| `precioTienda`     | Nuevo Precio Final      | Precio cuando el usuario elige "Tienda Estándar" |
 | `precioOutlet`     | Precios Outlet          | Precio cuando el usuario elige "Outlet" |
-| `precioPiloto`     | Precio 30 tiendas       | Precio cuando el usuario elige "Piloto 30 Tiendas" |
-| `estatus`          | OBSERVACION             | `"SUBE"` / `"BAJA"` / `"MANTIENE"` (u otro texto que contenga esas palabras) — sin cambios respecto a la lógica anterior |
+| `precioPiloto`     | Precio 30 tiendas       | Ya no se usa en la UI (canal Piloto oculto), pero el backend lo sigue exponiendo por si se reactiva |
 | `obsolescencia`    | Obsolescencia final     | `"50"`, `"100"` o vacío — dispara la alerta y el borde de color en la tarjeta del producto |
 | `fechaActualizacion` | (columna de fecha, si se agrega) | Opcional. Fecha del último cambio de precio |
 
-El % de descuento por canal **lo calcula el frontend**: `(fullPriceRetail - precioCanal) / fullPriceRetail * 100`. No hace falta que el Apps Script mande el % ya calculado.
+El % de descuento por canal, y si el precio subió/bajó/se mantuvo en el **detalle de un producto**, **lo calcula el frontend** comparando el precio real del canal contra `fullPriceRetail` — no depende de ninguna columna de observación. Para los **listados** (Alzas/Bajas/Sin Cambios) sí importa la observación: cada canal tiene su propia columna (`OBSERVACION STANDAR` / `OBSERVACION OUTLET`) y el backend filtra por la que corresponda según el parámetro `tienda` que manda `app.js`.
 
 Todos estos campos son opcionales por compatibilidad hacia atrás: si faltan, el frontend cae de vuelta a los campos antiguos (`precioInicial`, `nuevoPrecio`) para no romper mientras se actualiza el script.
 
@@ -57,7 +56,7 @@ En Apps Script, donde arman el objeto de respuesta (algo como `{ codigo: row[0],
 
 ### Selector de tipo de tienda
 
-Al abrir la app por primera vez, se pide elegir el canal (Estándar / Outlet / Piloto 30 Tiendas). La elección se guarda en `localStorage` (`tiendaSeleccionada`) y se reutiliza en visitas futuras; se puede cambiar en cualquier momento tocando el chip que aparece arriba del buscador. Todos los precios mostrados (detalle y listados) corresponden al canal activo.
+Al abrir la app por primera vez, se pide elegir el canal (Estándar / Outlet). La elección se guarda en `localStorage` (`tiendaSeleccionada`) y se reutiliza en visitas futuras; se puede cambiar en cualquier momento tocando el chip que aparece arriba del buscador. Todos los precios mostrados (detalle y listados) corresponden al canal activo. Si un usuario tiene guardado un canal que ya no existe (ej. `piloto`, de una versión anterior), la app lo ignora y vuelve a mostrar el selector.
 
 ### Exportar a PDF
 
