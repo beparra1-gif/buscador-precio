@@ -102,14 +102,36 @@ h2 { text-align: center; color: var(--text-main); margin-top: 0; margin-bottom: 
 .price-actual.alert-red { color: var(--accent-red); }
 .discount-badge { background: var(--primary); color: white; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.9em; display: inline-block; margin-bottom: 15px; }
 
-.filters-container { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none; }
-.filters-container::-webkit-scrollbar { display: none; }
-.filter-select { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-light); background-color: #F9FAFB; color: var(--text-main); font-size: 13px; font-weight: 500; outline: none; cursor: pointer; white-space: nowrap; }
-.filter-select:focus { border-color: var(--primary); }
+.list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; }
+.list-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.icon-btn { position: relative; background: none; border: 1px solid var(--border-light); border-radius: 6px; padding: 6px 10px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; }
+.icon-btn:hover { color: var(--primary); border-color: var(--primary); }
+.filtros-contador { position: absolute; top: -7px; right: -7px; background: var(--primary); color: white; font-size: 10px; font-weight: 700; border-radius: 999px; min-width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; padding: 0 3px; line-height: 1; }
 
-.list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.toggle-view { background: none; border: 1px solid var(--border-light); border-radius: 6px; padding: 6px 10px; cursor: pointer; color: var(--text-muted); }
-.toggle-view:hover { color: var(--primary); border-color: var(--primary); }
+/* Chips de filtros activos (pantalla de listado) */
+.filtros-activos { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 15px; }
+.chip-filtro { display: inline-flex; align-items: center; gap: 6px; background: #FEF2F2; border: 1px solid #FECACA; color: var(--primary-hover); padding: 5px 10px; border-radius: 14px; font-size: 12px; font-weight: 600; }
+.chip-filtro .quitar { cursor: pointer; font-weight: 800; opacity: 0.7; }
+.chip-filtro .quitar:hover { opacity: 1; }
+.chip-borrar { background: #F3F4F6; border-color: var(--border-light); color: var(--text-muted); cursor: pointer; }
+
+/* Modal de filtros */
+#filtros-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 1000; align-items: flex-end; justify-content: center; }
+#filtros-modal.active { display: flex; }
+.filtros-modal-content { background: var(--bg-card); width: 100%; max-width: 440px; max-height: 88vh; border-radius: 18px 18px 0 0; display: flex; flex-direction: column; animation: fadeIn 0.2s ease; }
+.filtros-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; border-bottom: 1px solid var(--border-light); }
+.filtros-modal-header h3 { margin: 0; font-size: 1.1em; color: var(--text-main); }
+.filtros-cerrar { background: none; border: none; font-size: 22px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 0 4px; }
+.filtros-modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+.filtro-grupo { margin-bottom: 20px; }
+.filtro-grupo label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.filter-select-full { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border-light); background-color: #F9FAFB; color: var(--text-main); font-size: 14px; outline: none; cursor: pointer; }
+.filter-select-full:focus { border-color: var(--primary); }
+.orden-botones { display: flex; gap: 8px; }
+.orden-botones button { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border-light); background: #F9FAFB; color: var(--text-main); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.orden-botones button.active { background: var(--primary); color: white; border-color: var(--primary); }
+.filtros-modal-footer { display: flex; gap: 10px; padding: 16px 20px; border-top: 1px solid var(--border-light); }
+.filtros-modal-footer .btn-pag { flex: 1; }
 .items-container { max-height: 60vh; overflow-y: auto; padding-right: 5px; }
 .items-container::-webkit-scrollbar { width: 6px; }
 .items-container::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }

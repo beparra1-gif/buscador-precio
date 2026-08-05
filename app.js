@@ -12,6 +12,10 @@ let categoriaActual = '';
 let itemsFiltrados = [];
 let paginaActual = 1;
 const itemsPorPagina = 50;
+let ordenPrecio = null; // 'asc' | 'desc' | null
+
+const RANGO_PRECIO_LABEL = { p1: 'Menos de $10.000', p2: '$10.000 - $20.000', p3: '$20.000 - $30.000', p4: '$30.000 - $50.000', p5: 'Más de $50.000' };
+const RANGO_DESCUENTO_LABEL = { d0: 'Sin descuento', d1: '1% - 10%', d2: '11% - 25%', d3: '26% - 50%', d4: 'Más de 50%' };
 
 // Canal de tienda: define qué columna de precio del Sheet se usa en toda la app
 const CAMPO_PRECIO_CANAL = { estandar: 'precioTienda', outlet: 'precioOutlet' };
@@ -373,6 +377,12 @@ async function cargarLista(categoria, tituloHumanizado) {
     document.getElementById('listaContenedor').innerHTML = '';
     document.getElementById('filterPrecio').value = 'ALL';
     document.getElementById('filterDescuento').value = 'ALL';
+    document.getElementById('filterObsolescencia').value = 'ALL';
+    // El filtro de nivel de obsolescencia solo tiene sentido dentro del apartado de Obsolescencia
+    document.getElementById('grupoFiltroObsolescencia').style.display = (categoria === 'OBSOLESCENCIA') ? 'block' : 'none';
+    ordenPrecio = null;
+    document.getElementById('btnOrdenAsc').classList.remove('active');
+    document.getElementById('btnOrdenDesc').classList.remove('active');
     categoriaActual = categoria;
     // Exportar a PDF solo tiene sentido para Alzas/Bajas (no para Sin Cambios ni Obsolescencia)
     document.getElementById('btnExportarPDF').style.display = (categoria === 'SUBE' || categoria === 'BAJA') ? 'flex' : 'none';
@@ -387,6 +397,7 @@ async function cargarLista(categoria, tituloHumanizado) {
             paginaActual = 1;
 
             poblarFiltros(itemsGlobales);
+            renderizarFiltrosActivos();
             renderizarPagina();
 
             cambiarVista('view-3');
@@ -449,6 +460,7 @@ function aplicarFiltros() {
     const vTipo = document.getElementById('filterTipo').value;
     const vPrecio = document.getElementById('filterPrecio').value;
     const vDescuento = document.getElementById('filterDescuento').value;
+    const vObsolescencia = document.getElementById('filterObsolescencia').value;
 
     const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
 
@@ -456,6 +468,7 @@ function aplicarFiltros() {
         const pasaMarca = vMarca === "ALL" || item.marca === vMarca;
         const pasaGenero = vGenero === "ALL" || item.genero === vGenero;
         const pasaTipo = vTipo === "ALL" || item.tipoProducto === vTipo;
+        const pasaObsolescencia = vObsolescencia === "ALL" || obtenerNivelObsolescencia(item.obsolescencia) === vObsolescencia;
 
         let pasaPrecio = true;
         if (vPrecio !== 'ALL') {
@@ -472,12 +485,96 @@ function aplicarFiltros() {
             pasaDescuento = obtenerRangoDescuento(pct) === vDescuento;
         }
 
-        return pasaMarca && pasaGenero && pasaTipo && pasaPrecio && pasaDescuento;
+        return pasaMarca && pasaGenero && pasaTipo && pasaObsolescencia && pasaPrecio && pasaDescuento;
     });
+
+    if (ordenPrecio) {
+        const leerPrecio = (item) => {
+            const v = valorConFallback(item, campoPrecio, 'nuevoPrecio');
+            return parseInt((v || '').toString().replace(/\D/g, ''), 10) || 0;
+        };
+        filtrados.sort((a, b) => ordenPrecio === 'asc' ? leerPrecio(a) - leerPrecio(b) : leerPrecio(b) - leerPrecio(a));
+    }
 
     itemsFiltrados = filtrados;
     paginaActual = 1;
+    renderizarFiltrosActivos();
     renderizarPagina();
+}
+
+function abrirFiltros() {
+    document.getElementById('filtros-modal').classList.add('active');
+}
+
+function cerrarFiltros() {
+    document.getElementById('filtros-modal').classList.remove('active');
+}
+
+function setOrdenPrecio(orden) {
+    ordenPrecio = (ordenPrecio === orden) ? null : orden;
+    document.getElementById('btnOrdenAsc').classList.toggle('active', ordenPrecio === 'asc');
+    document.getElementById('btnOrdenDesc').classList.toggle('active', ordenPrecio === 'desc');
+}
+
+function guardarFiltros() {
+    aplicarFiltros();
+    cerrarFiltros();
+}
+
+function borrarFiltros() {
+    ['filterMarca', 'filterGenero', 'filterTipo', 'filterPrecio', 'filterDescuento', 'filterObsolescencia'].forEach(id => {
+        document.getElementById(id).value = 'ALL';
+    });
+    ordenPrecio = null;
+    document.getElementById('btnOrdenAsc').classList.remove('active');
+    document.getElementById('btnOrdenDesc').classList.remove('active');
+    aplicarFiltros();
+    cerrarFiltros();
+}
+
+// Quita un filtro puntual desde su chip en la pantalla de listado, sin abrir el modal
+function quitarFiltro(id) {
+    if (id === '__orden') {
+        ordenPrecio = null;
+        document.getElementById('btnOrdenAsc').classList.remove('active');
+        document.getElementById('btnOrdenDesc').classList.remove('active');
+    } else {
+        document.getElementById(id).value = 'ALL';
+    }
+    aplicarFiltros();
+}
+
+function renderizarFiltrosActivos() {
+    const cont = document.getElementById('filtrosActivos');
+    const contador = document.getElementById('filtrosContador');
+    const chips = [];
+
+    const agregar = (id, etiqueta, formatear) => {
+        const el = document.getElementById(id);
+        if (el.value !== 'ALL') chips.push({ id, texto: `${etiqueta}: ${formatear ? formatear(el.value) : el.value}` });
+    };
+
+    agregar('filterMarca', 'Marca');
+    agregar('filterGenero', 'Género');
+    agregar('filterTipo', 'Tipo');
+    agregar('filterObsolescencia', 'Obsolescencia', v => `${v}%`);
+    agregar('filterPrecio', 'Precio', v => RANGO_PRECIO_LABEL[v] || v);
+    agregar('filterDescuento', 'Descuento', v => RANGO_DESCUENTO_LABEL[v] || v);
+    if (ordenPrecio) chips.push({ id: '__orden', texto: `Orden: ${ordenPrecio === 'asc' ? 'Menor a Mayor' : 'Mayor a Menor'}` });
+
+    document.getElementById('filtrosContador').style.display = chips.length > 0 ? 'flex' : 'none';
+    contador.textContent = chips.length;
+
+    if (chips.length === 0) {
+        cont.style.display = 'none';
+        cont.innerHTML = '';
+        return;
+    }
+
+    cont.style.display = 'flex';
+    cont.innerHTML = chips.map(c =>
+        `<span class="chip-filtro">${c.texto} <span class="quitar" onclick="quitarFiltro('${c.id}')">&times;</span></span>`
+    ).join('') + `<span class="chip-filtro chip-borrar" onclick="borrarFiltros()">Borrar todo</span>`;
 }
 
 function renderizarPagina() {

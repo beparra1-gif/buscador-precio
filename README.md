@@ -58,6 +58,10 @@ En Apps Script, donde arman el objeto de respuesta (algo como `{ codigo: row[0],
 
 Al abrir la app por primera vez, se pide elegir el canal (Estándar / Outlet). La elección se guarda en `localStorage` (`tiendaSeleccionada`) y se reutiliza en visitas futuras; se puede cambiar en cualquier momento tocando el chip que aparece arriba del buscador. Todos los precios mostrados (detalle y listados) corresponden al canal activo. Si un usuario tiene guardado un canal que ya no existe (ej. `piloto`, de una versión anterior), la app lo ignora y vuelve a mostrar el selector.
 
+### Filtros y orden en los listados
+
+Los filtros (Marca, Género, Tipo, Rango de Precio, Nivel de Descuento, y Nivel de Obsolescencia — este último solo visible dentro del apartado "Obsolescencia") viven en una ventana modal (`#filtros-modal`), abierta con el ícono de embudo en el encabezado del listado, en vez de una barra horizontal con scroll (poco descubrible en pantallas chicas). También se puede ordenar por precio de menor a mayor o viceversa. Los cambios en los `<select>` del modal no se aplican solos — hay que tocar "Aplicar Filtros"; al aplicar, se cierran el modal y quedan chips en la pantalla del listado mostrando qué filtros están activos, cada uno con su propia "✕" para quitarlo individual, más un chip "Borrar todo".
+
 ### Exportar a PDF
 
 Los listados de **Alzas de Precio** y **Bajas de Precio** (no "Sin Cambios" ni "Obsolescencia") tienen un botón "Exportar PDF" que genera un PDF tamaño carta con foto, código, marca, género, tipo de producto, precio inicial, precio antes, % de variación y precio final — respetando los filtros aplicados en ese momento. Usa `jsPDF` + `jspdf-autotable` cargados por CDN en `index.html`. Por rendimiento (cargar cientos de fotos en el navegador es lento/pesado, sobre todo en el celular), hay un tope de `LIMITE_EXPORTACION_PDF` (150) productos en `app.js`; si se supera, se le pide al usuario filtrar más en vez de intentar exportar igual.
@@ -69,7 +73,7 @@ Si modificas `index.html`, `style.css`, `app.js` o `manifest.json`, **sube el n�
 ## Ideas de mejora a futuro
 
 - **Seguridad**: la URL del Apps Script queda visible en el cliente. Vale la pena revisar en el propio script qué controles de acceso tiene (autenticación, límite de requests, CORS) para evitar que se use para raspar el catálogo completo.
-- **Búsqueda por texto en los listados**: hoy los filtros de "Alzas/Bajas/Sin Cambios" solo permiten filtrar por marca, género y tipo; un campo de búsqueda libre ayudaría en categorías grandes.
+- **Búsqueda por texto en los listados**: los filtros actuales son por selección (marca/género/tipo/precio/descuento/obsolescencia); un campo de búsqueda libre por código o nombre ayudaría en categorías grandes.
 - **Manejo de "sin conexión"** más explícito, más allá de los toasts de error (por ejemplo detectar `navigator.onLine` y mostrar un banner persistente).
 - **Íconos propios**: actualmente se usa un ícono genérico (`icons/icon-192.png` y `icons/icon-512.png`), conviene reemplazarlo por el logo real de la marca en ambas resoluciones.
 - **Tests**: no hay ninguno. Si la lógica de parseo de precios/descuentos (`app.js`) crece, conviene testearla por separado (por ejemplo extrayéndola a un módulo con Vitest/Jest).
