@@ -39,6 +39,27 @@
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4z"></path></svg>
             Outlet
         </button>
+
+        <button class="btn-primary btn-outline btn-tienda" onclick="seleccionarTienda('evento')">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>
+            Tienda Evento
+        </button>
+    </div>
+
+    <!-- PANTALLA 0-EVENTO: SELECCIÓN DE TIENDA FÍSICA (solo canal Evento) -->
+    <div id="view-0-evento" class="view">
+        <h2>Seleccione su Tienda</h2>
+        <p style="text-align:center; color:var(--text-muted); font-size:13px; margin-top:-15px; margin-bottom:25px;">Va a ver solo el stock y los c&oacute;digos de esta tienda</p>
+
+        <div class="filtro-grupo">
+            <label>Tienda</label>
+            <select id="selectTiendaEvento" class="filter-select-full">
+                <option value="">Cargando tiendas...</option>
+            </select>
+        </div>
+
+        <button class="btn-primary" onclick="confirmarTiendaEvento()">Continuar</button>
+        <button class="btn-volver" onclick="cambiarVista('view-0')">Volver</button>
     </div>
 
     <!-- PANTALLA 1: BUSCADOR PRINCIPAL -->
@@ -70,25 +91,34 @@
 
         <div class="menu-title">Oportunidades y Alertas</div>
 
-        <button class="btn-primary btn-outline alert" onclick="cargarLista('SUBE', 'Alzas de Precio')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-            Alzas de Precio
-        </button>
+        <div id="menuEstandarOutlet">
+            <button class="btn-primary btn-outline alert" onclick="cargarLista('SUBE', 'Alzas de Precio')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                Alzas de Precio
+            </button>
 
-        <button class="btn-primary btn-outline down" onclick="cargarLista('BAJA', 'Bajas de Precio')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
-            Bajas de Precio
-        </button>
+            <button class="btn-primary btn-outline down" onclick="cargarLista('BAJA', 'Bajas de Precio')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+                Bajas de Precio
+            </button>
 
-        <button class="btn-primary btn-outline" onclick="cargarLista('MANTIENE', 'Sin Cambios')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="9" x2="19" y2="9"></line><line x1="5" y1="15" x2="19" y2="15"></line></svg>
-            Sin Cambios
-        </button>
+            <button class="btn-primary btn-outline" onclick="cargarLista('MANTIENE', 'Sin Cambios')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="9" x2="19" y2="9"></line><line x1="5" y1="15" x2="19" y2="15"></line></svg>
+                Sin Cambios
+            </button>
 
-        <button class="btn-primary btn-outline" onclick="cargarLista('OBSOLESCENCIA', 'Obsolescencia')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>
-            Obsolescencia
-        </button>
+            <button class="btn-primary btn-outline" onclick="cargarLista('OBSOLESCENCIA', 'Obsolescencia')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>
+                Obsolescencia
+            </button>
+        </div>
+
+        <div id="menuEvento" style="display:none;">
+            <button class="btn-primary btn-outline" onclick="cargarListaEvento()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"></path><path d="M5 7v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7"></path><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+                Ver Stock de mi Tienda
+            </button>
+        </div>
     </div>
 
     <!-- PANTALLA 2: DETALLE DEL PRODUCTO -->
@@ -103,8 +133,9 @@
         <div class="info-box" id="infoBoxProducto">
             <div class="info-item"><span class="info-label">Marca:</span> <span id="outMarca">---</span></div>
             <div class="info-item"><span class="info-label">G&eacute;nero:</span> <span id="outGenero">---</span></div>
-            <div class="info-item"><span class="info-label">Tipo Producto:</span> <span id="outTipoProd">---</span></div>
-            <div class="info-item"><span class="info-label">Proyecto:</span> <span id="outProyecto">---</span></div>
+            <div class="info-item"><span class="info-label" id="lblTipoProd">Tipo Producto:</span> <span id="outTipoProd">---</span></div>
+            <div class="info-item"><span class="info-label" id="lblProyecto">Proyecto:</span> <span id="outProyecto">---</span></div>
+            <div class="info-item" id="filaStock" style="display:none;"><span class="info-label">Stock:</span> <span id="outStock">---</span></div>
         </div>
 
         <!-- CONTENEDOR DE PRECIOS -->
@@ -196,7 +227,11 @@
                 <label>Tipo de Producto</label>
                 <select id="filterTipo" class="filter-select-full"><option value="ALL">Todos los Tipos</option></select>
             </div>
-            <div class="filtro-grupo">
+            <div class="filtro-grupo" id="grupoFiltroSubcategoria" style="display:none;">
+                <label>Subcategor&iacute;a</label>
+                <select id="filterSubcategoria" class="filter-select-full"><option value="ALL">Todas</option></select>
+            </div>
+            <div class="filtro-grupo" id="grupoFiltroPrecio">
                 <label>Rango de Precio</label>
                 <select id="filterPrecio" class="filter-select-full">
                     <option value="ALL">Todos los Precios</option>
@@ -207,7 +242,20 @@
                     <option value="p5">M&aacute;s de $50.000</option>
                 </select>
             </div>
-            <div class="filtro-grupo">
+            <div class="filtro-grupo" id="grupoFiltroPuntaPrecio" style="display:none;">
+                <label>Punta de Precio</label>
+                <select id="filterPuntaPrecio" class="filter-select-full">
+                    <option value="ALL">Todas</option>
+                    <option value="990">$990</option>
+                    <option value="1000">$1.000</option>
+                    <option value="5000">$5.000</option>
+                    <option value="7000">$7.000</option>
+                    <option value="10000">$10.000</option>
+                    <option value="15000">$15.000</option>
+                    <option value="20000">$20.000</option>
+                </select>
+            </div>
+            <div class="filtro-grupo" id="grupoFiltroDescuento">
                 <label>Nivel de Descuento</label>
                 <select id="filterDescuento" class="filter-select-full">
                     <option value="ALL">Todos los Descuentos</option>

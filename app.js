@@ -17,33 +17,94 @@ let ordenPrecio = null; // 'asc' | 'desc' | null
 const RANGO_PRECIO_LABEL = { p1: 'Menos de $10.000', p2: '$10.000 - $20.000', p3: '$20.000 - $30.000', p4: '$30.000 - $50.000', p5: 'Más de $50.000' };
 const RANGO_DESCUENTO_LABEL = { d0: 'Sin descuento', d1: '1% - 10%', d2: '11% - 25%', d3: '26% - 50%', d4: 'Más de 50%' };
 
-// Canal de tienda: define qué columna de precio del Sheet se usa en toda la app
-const CAMPO_PRECIO_CANAL = { estandar: 'precioTienda', outlet: 'precioOutlet' };
-const LABEL_TIENDA = { estandar: 'Tienda Estándar', outlet: 'Outlet' };
+// Canal de tienda: define qué columna de precio del Sheet se usa en toda la app.
+// "evento" usa precioOferta (la hoja Evento Outlet no tiene canales Estándar/Outlet,
+// solo un único "Precio Oferta Ahora" por tienda física).
+const CAMPO_PRECIO_CANAL = { estandar: 'precioTienda', outlet: 'precioOutlet', evento: 'precioOferta' };
+const LABEL_TIENDA = { estandar: 'Tienda Estándar', outlet: 'Outlet', evento: 'Evento' };
 let tiendaActual = localStorage.getItem('tiendaSeleccionada') || null;
+let tiendaEventoActual = localStorage.getItem('tiendaEventoSeleccionada') || null;
 
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(err => console.log('PWA no registrada', err));
 }
 
+function tiendaConfiguradaValida() {
+    if (!tiendaActual) return false;
+    if (tiendaActual === 'evento') return !!tiendaEventoActual;
+    return !!CAMPO_PRECIO_CANAL[tiendaActual];
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     cargarRecientes();
-    if (tiendaActual && CAMPO_PRECIO_CANAL[tiendaActual]) {
+    if (tiendaConfiguradaValida()) {
         actualizarChipTienda();
+        mostrarMenuSegunTienda();
         cambiarVista('view-1');
     }
 });
 
 function seleccionarTienda(tipo) {
+    if (tipo === 'evento') {
+        mostrarSelectorTiendaEvento();
+        return;
+    }
     tiendaActual = tipo;
     localStorage.setItem('tiendaSeleccionada', tipo);
     actualizarChipTienda();
+    mostrarMenuSegunTienda();
+    cambiarVista('view-1');
+}
+
+// Trae la lista de tiendas físicas (columna A de Evento Outlet) para que el
+// usuario elija la suya, en vez de escribirla a mano (evita errores de tipeo).
+async function mostrarSelectorTiendaEvento() {
+    cambiarVista('view-0-evento');
+    const select = document.getElementById('selectTiendaEvento');
+    select.innerHTML = '<option value="">Cargando tiendas...</option>';
+    try {
+        const data = await fetchConTimeout(`${urlAPI}?action=listarTiendasEvento`);
+        if (data.encontrado && data.tiendas && data.tiendas.length > 0) {
+            select.innerHTML = data.tiendas.map(t => `<option value="${t}">${t}</option>`).join('');
+            if (tiendaEventoActual && data.tiendas.includes(tiendaEventoActual)) {
+                select.value = tiendaEventoActual;
+            }
+        } else {
+            select.innerHTML = '<option value="">No hay tiendas disponibles</option>';
+        }
+    } catch (e) {
+        select.innerHTML = '<option value="">Error al cargar tiendas</option>';
+    }
+}
+
+function confirmarTiendaEvento() {
+    const tienda = document.getElementById('selectTiendaEvento').value;
+    if (!tienda) return mostrarToast('Seleccione una tienda', 'error');
+
+    tiendaEventoActual = tienda;
+    localStorage.setItem('tiendaEventoSeleccionada', tienda);
+    tiendaActual = 'evento';
+    localStorage.setItem('tiendaSeleccionada', 'evento');
+    actualizarChipTienda();
+    mostrarMenuSegunTienda();
     cambiarVista('view-1');
 }
 
 function actualizarChipTienda() {
     const label = document.getElementById('tiendaActualLabel');
-    if (label) label.textContent = LABEL_TIENDA[tiendaActual] || '--';
+    if (!label) return;
+    label.textContent = tiendaActual === 'evento'
+        ? `Evento · ${tiendaEventoActual || ''}`
+        : (LABEL_TIENDA[tiendaActual] || '--');
+}
+
+// El apartado "Oportunidades y Alertas" no aplica a Evento (la hoja no tiene
+// columnas de observación ni obsolescencia) — se reemplaza por un único botón
+// para ver todo el stock de la tienda elegida.
+function mostrarMenuSegunTienda() {
+    const esEvento = tiendaActual === 'evento';
+    document.getElementById('menuEstandarOutlet').style.display = esEvento ? 'none' : 'block';
+    document.getElementById('menuEvento').style.display = esEvento ? 'block' : 'none';
 }
 
 // Toma un valor de un objeto, y si no existe usa un campo alterno (compatibilidad mientras se actualiza el Apps Script)
@@ -231,8 +292,13 @@ async function procesarCodigo(codDirecto = null) {
 
     document.getElementById('loading').style.display = "block";
 
+    const esEvento = tiendaActual === 'evento';
+    const urlBusqueda = esEvento
+        ? `${urlAPI}?action=buscarCodigoEvento&codigo=${codigo}&tiendaEvento=${encodeURIComponent(tiendaEventoActual || '')}`
+        : `${urlAPI}?action=buscarCodigo&codigo=${codigo}`;
+
     try {
-        const data = await fetchConTimeout(`${urlAPI}?action=buscarCodigo&codigo=${codigo}`);
+        const data = await fetchConTimeout(urlBusqueda);
         document.getElementById('loading').style.display = "none";
 
         if(data.encontrado) {
@@ -243,7 +309,19 @@ async function procesarCodigo(codDirecto = null) {
             document.getElementById('outMarca').innerText = data.marca || '--';
             document.getElementById('outGenero').innerText = data.genero || '--';
             document.getElementById('outTipoProd').innerText = data.tipoProducto || '--';
-            document.getElementById('outProyecto').innerText = (data.proyecto && data.proyecto.toString().trim() !== "") ? data.proyecto : '--';
+            document.getElementById('lblTipoProd').innerText = esEvento ? 'Categoría:' : 'Tipo Producto:';
+
+            const filaStock = document.getElementById('filaStock');
+            if (esEvento) {
+                document.getElementById('lblProyecto').innerText = 'Subcategoría:';
+                document.getElementById('outProyecto').innerText = data.subcategoria || '--';
+                filaStock.style.display = 'flex';
+                document.getElementById('outStock').innerText = (data.stock !== undefined && data.stock !== null && data.stock !== '') ? data.stock : '--';
+            } else {
+                document.getElementById('lblProyecto').innerText = 'Proyecto:';
+                document.getElementById('outProyecto').innerText = (data.proyecto && data.proyecto.toString().trim() !== "") ? data.proyecto : '--';
+                filaStock.style.display = 'none';
+            }
 
             const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
             const precioBase = valorConFallback(data, 'fullPriceRetail', 'precioInicial');
@@ -371,18 +449,34 @@ async function procesarCodigo(codDirecto = null) {
     }
 }
 
+// Resetea los selects de filtro y muestra/oculta los grupos que corresponden
+// según el tipo de listado (los de Evento y los de BASE PRECIOS no comparten
+// todos los mismos filtros: Subcategoría/Punta de Precio son solo de Evento,
+// Rango de Precio/Descuento son solo de BASE PRECIOS, Obsolescencia solo del
+// apartado de Obsolescencia).
+function prepararFiltrosParaListado(modo) {
+    document.getElementById('filterPrecio').value = 'ALL';
+    document.getElementById('filterDescuento').value = 'ALL';
+    document.getElementById('filterObsolescencia').value = 'ALL';
+    document.getElementById('filterSubcategoria').value = 'ALL';
+    document.getElementById('filterPuntaPrecio').value = 'ALL';
+
+    document.getElementById('grupoFiltroObsolescencia').style.display = (modo === 'obsolescencia') ? 'block' : 'none';
+    document.getElementById('grupoFiltroSubcategoria').style.display = (modo === 'evento') ? 'block' : 'none';
+    document.getElementById('grupoFiltroPuntaPrecio').style.display = (modo === 'evento') ? 'block' : 'none';
+    document.getElementById('grupoFiltroPrecio').style.display = (modo === 'evento') ? 'none' : 'block';
+    document.getElementById('grupoFiltroDescuento').style.display = (modo === 'evento') ? 'none' : 'block';
+
+    ordenPrecio = null;
+    document.getElementById('btnOrdenAsc').classList.remove('active');
+    document.getElementById('btnOrdenDesc').classList.remove('active');
+}
+
 async function cargarLista(categoria, tituloHumanizado) {
     document.getElementById('loading').style.display = "block";
     document.getElementById('tituloLista').innerText = tituloHumanizado;
     document.getElementById('listaContenedor').innerHTML = '';
-    document.getElementById('filterPrecio').value = 'ALL';
-    document.getElementById('filterDescuento').value = 'ALL';
-    document.getElementById('filterObsolescencia').value = 'ALL';
-    // El filtro de nivel de obsolescencia solo tiene sentido dentro del apartado de Obsolescencia
-    document.getElementById('grupoFiltroObsolescencia').style.display = (categoria === 'OBSOLESCENCIA') ? 'block' : 'none';
-    ordenPrecio = null;
-    document.getElementById('btnOrdenAsc').classList.remove('active');
-    document.getElementById('btnOrdenDesc').classList.remove('active');
+    prepararFiltrosParaListado(categoria === 'OBSOLESCENCIA' ? 'obsolescencia' : 'normal');
     categoriaActual = categoria;
     // Exportar a PDF solo tiene sentido para Alzas/Bajas (no para Sin Cambios ni Obsolescencia)
     document.getElementById('btnExportarPDF').style.display = (categoria === 'SUBE' || categoria === 'BAJA') ? 'flex' : 'none';
@@ -414,24 +508,69 @@ async function cargarLista(categoria, tituloHumanizado) {
     }
 }
 
+// Trae todo el stock de la tienda de evento elegida. Reutiliza toda la
+// infraestructura de listado (paginación, vista lista/cuadrícula, filtros,
+// chips) porque armarProductoEvento() ya devuelve los items con la misma
+// forma que los de BASE PRECIOS (tipoProducto, precioInicial, etc).
+async function cargarListaEvento() {
+    if (!tiendaEventoActual) return mostrarToast('Seleccione primero su tienda de evento.', 'error');
+
+    document.getElementById('loading').style.display = "block";
+    document.getElementById('tituloLista').innerText = `Stock — ${tiendaEventoActual}`;
+    document.getElementById('listaContenedor').innerHTML = '';
+    prepararFiltrosParaListado('evento');
+    categoriaActual = 'EVENTO';
+    document.getElementById('btnExportarPDF').style.display = 'none';
+
+    try {
+        const data = await fetchConTimeout(`${urlAPI}?action=listarEvento&tiendaEvento=${encodeURIComponent(tiendaEventoActual)}`);
+        document.getElementById('loading').style.display = "none";
+
+        if (data.encontrado && data.items && data.items.length > 0) {
+            itemsGlobales = data.items;
+            itemsFiltrados = [...itemsGlobales];
+            paginaActual = 1;
+
+            poblarFiltros(itemsGlobales);
+            renderizarFiltrosActivos();
+            renderizarPagina();
+
+            cambiarVista('view-3');
+        } else {
+            mostrarToast("No se encontró stock para esta tienda.", 'error');
+        }
+    } catch(e) {
+        document.getElementById('loading').style.display = "none";
+        if (e.name === 'AbortError') {
+            mostrarToast("La consulta demoró demasiado. Intente nuevamente.", 'error');
+        } else {
+            mostrarToast("Error al cargar el stock.", 'error');
+        }
+    }
+}
+
 function poblarFiltros(items) {
     const setMarcas = new Set();
     const setGeneros = new Set();
     const setTipos = new Set();
+    const setSubcategorias = new Set();
 
     items.forEach(item => {
         if (item.marca && item.marca !== '--') setMarcas.add(item.marca);
         if (item.genero && item.genero !== '--') setGeneros.add(item.genero);
         if (item.tipoProducto && item.tipoProducto !== '--') setTipos.add(item.tipoProducto);
+        if (item.subcategoria && item.subcategoria !== '--') setSubcategorias.add(item.subcategoria);
     });
 
     const fMarca = document.getElementById('filterMarca');
     const fGenero = document.getElementById('filterGenero');
     const fTipo = document.getElementById('filterTipo');
+    const fSubcategoria = document.getElementById('filterSubcategoria');
 
     fMarca.innerHTML = '<option value="ALL">Todas las Marcas</option>' + Array.from(setMarcas).sort().map(m => `<option value="${m}">${m}</option>`).join('');
     fGenero.innerHTML = '<option value="ALL">Todos los Géneros</option>' + Array.from(setGeneros).sort().map(g => `<option value="${g}">${g}</option>`).join('');
     fTipo.innerHTML = '<option value="ALL">Todos los Tipos</option>' + Array.from(setTipos).sort().map(t => `<option value="${t}">${t}</option>`).join('');
+    fSubcategoria.innerHTML = '<option value="ALL">Todas</option>' + Array.from(setSubcategorias).sort().map(s => `<option value="${s}">${s}</option>`).join('');
 }
 
 // Bucket de precio para el filtro "Rango de Precio" (usa el precio del canal activo)
@@ -461,6 +600,8 @@ function aplicarFiltros() {
     const vPrecio = document.getElementById('filterPrecio').value;
     const vDescuento = document.getElementById('filterDescuento').value;
     const vObsolescencia = document.getElementById('filterObsolescencia').value;
+    const vSubcategoria = document.getElementById('filterSubcategoria').value;
+    const vPuntaPrecio = document.getElementById('filterPuntaPrecio').value;
 
     const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
 
@@ -469,6 +610,7 @@ function aplicarFiltros() {
         const pasaGenero = vGenero === "ALL" || item.genero === vGenero;
         const pasaTipo = vTipo === "ALL" || item.tipoProducto === vTipo;
         const pasaObsolescencia = vObsolescencia === "ALL" || obtenerNivelObsolescencia(item.obsolescencia) === vObsolescencia;
+        const pasaSubcategoria = vSubcategoria === "ALL" || item.subcategoria === vSubcategoria;
 
         let pasaPrecio = true;
         if (vPrecio !== 'ALL') {
@@ -485,7 +627,16 @@ function aplicarFiltros() {
             pasaDescuento = obtenerRangoDescuento(pct) === vDescuento;
         }
 
-        return pasaMarca && pasaGenero && pasaTipo && pasaObsolescencia && pasaPrecio && pasaDescuento;
+        // Punta de precio: coincidencia EXACTA con el precio del canal (ej. $990, $5.000),
+        // a diferencia de Rango de Precio que agrupa por tramos.
+        let pasaPuntaPrecio = true;
+        if (vPuntaPrecio !== 'ALL') {
+            const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
+            const n = parseInt((precioCanal || '').toString().replace(/\D/g, ''), 10);
+            pasaPuntaPrecio = n === parseInt(vPuntaPrecio, 10);
+        }
+
+        return pasaMarca && pasaGenero && pasaTipo && pasaObsolescencia && pasaSubcategoria && pasaPuntaPrecio && pasaPrecio && pasaDescuento;
     });
 
     if (ordenPrecio) {
@@ -522,7 +673,7 @@ function guardarFiltros() {
 }
 
 function borrarFiltros() {
-    ['filterMarca', 'filterGenero', 'filterTipo', 'filterPrecio', 'filterDescuento', 'filterObsolescencia'].forEach(id => {
+    ['filterMarca', 'filterGenero', 'filterTipo', 'filterPrecio', 'filterDescuento', 'filterObsolescencia', 'filterSubcategoria', 'filterPuntaPrecio'].forEach(id => {
         document.getElementById(id).value = 'ALL';
     });
     ordenPrecio = null;
@@ -558,7 +709,9 @@ function renderizarFiltrosActivos() {
     agregar('filterGenero', 'Género');
     agregar('filterTipo', 'Tipo');
     agregar('filterObsolescencia', 'Obsolescencia', v => `${v}%`);
+    agregar('filterSubcategoria', 'Subcategoría');
     agregar('filterPrecio', 'Precio', v => RANGO_PRECIO_LABEL[v] || v);
+    agregar('filterPuntaPrecio', 'Punta Precio', v => `$${Number(v).toLocaleString('es-CL')}`);
     agregar('filterDescuento', 'Descuento', v => RANGO_DESCUENTO_LABEL[v] || v);
     if (ordenPrecio) chips.push({ id: '__orden', texto: `Orden: ${ordenPrecio === 'asc' ? 'Menor a Mayor' : 'Mayor a Menor'}` });
 
@@ -633,12 +786,16 @@ function renderizarItems(items) {
         const numDesc = calcularDescuentoCanal(precioBase, precioCanal);
 
         let badgeHtml = '';
-        if ((categoriaActual === 'BAJA' || categoriaActual === 'OBSOLESCENCIA') && numDesc > 0) badgeHtml = `<div class="item-discount">-${numDesc}%</div>`;
+        if ((categoriaActual === 'BAJA' || categoriaActual === 'OBSOLESCENCIA' || categoriaActual === 'EVENTO') && numDesc > 0) badgeHtml = `<div class="item-discount">-${numDesc}%</div>`;
         if (categoriaActual === 'SUBE') badgeHtml = `<div style="font-size: 11px; color: var(--accent-red); font-weight: 600;">⚠️ Alza</div>`;
 
         const nivelObs = obtenerNivelObsolescencia(item.obsolescencia);
         const claseObs = nivelObs ? ` obsolescencia-${nivelObs}` : '';
         const badgeObs = renderObsolescenciaBadge(nivelObs);
+
+        const metaTexto = (categoriaActual === 'EVENTO' && item.stock !== undefined && item.stock !== '')
+            ? `${item.marca || '--'} | ${item.genero || '--'} | Stock: ${item.stock}`
+            : `${item.marca || '--'} | ${item.genero || '--'}`;
 
         const card = document.createElement('div');
         card.className = 'item-card' + claseObs;
@@ -651,7 +808,7 @@ function renderizarItems(items) {
                     <div class="item-code">${codigo}${badgeObs}</div>
                     ${badgeHtml}
                 </div>
-                <div class="item-meta">${item.marca || '--'} | ${item.genero || '--'}</div>
+                <div class="item-meta">${metaTexto}</div>
                 <div class="item-prices">
                     <div class="item-price-old">
                         <span>Precio Inicial</span>

@@ -14,6 +14,18 @@ function doGet(e) {
   if (accion === 'debug') {
     return debugHojas();
   }
+  if (accion === 'debugEvento') {
+    return debugEvento();
+  }
+  if (accion === 'listarTiendasEvento') {
+    return listarTiendasEvento();
+  }
+  if (accion === 'buscarCodigoEvento') {
+    return buscarCodigoEvento(e.parameter.codigo, e.parameter.tiendaEvento);
+  }
+  if (accion === 'listarEvento') {
+    return listarEvento(e.parameter.tiendaEvento);
+  }
   if (accion === 'listarCategoria') {
     return listarCategoria(e.parameter.categoria, e.parameter.tienda);
   }
@@ -199,6 +211,158 @@ function listarCategoria(categoria, tienda) {
     var coincide = candidatos.some(function (c) { return estatus.indexOf(c) !== -1; });
     if (coincide) {
       items.push(armarProducto(data[j], col, colOpcional));
+    }
+  }
+  return salida({ encontrado: true, items: items });
+}
+
+// ===================== EVENTO OUTLET =====================
+// Hoja aparte de liquidaciones por tienda física (pestaña "TIENDAS EVENTO",
+// detectada por contener "EVENTO" en el nombre). Se lee por NOMBRE de
+// encabezado, igual que BASE PRECIOS (reutiliza obtenerEncabezados), porque
+// los encabezados reales de esta hoja son:
+// Tienda | Codigo | Marca | Genero | Categoria | Subcategoria | Proyecto |
+// Observación | Precio Lleno | Precio Oferta Anterior | Nuevo Precio Oferta | Stock
+
+// Endpoint temporal de diagnóstico: ?action=debugEvento
+// Muestra los encabezados reales y una fila de ejemplo de la hoja Evento
+// Outlet, para confirmar en qué columna está cada dato. Se puede borrar
+// una vez que COL_EVENTO esté confirmado.
+function debugEvento() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = encontrarHojaEvento(ss);
+  if (!sheet) return salida({ encontrado: false, error: 'No se encontró ninguna hoja con "EVENTO" en el nombre' });
+  var totalColumnas = sheet.getLastColumn();
+  var encabezados = sheet.getRange(1, 1, 1, totalColumnas).getValues()[0];
+  var filaEjemplo = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, 1, totalColumnas).getValues()[0] : [];
+  var letras = encabezados.map(function (_, i) { return columnaALetra(i); });
+  return salida({
+    encontrado: true,
+    hoja: sheet.getName(),
+    totalFilas: sheet.getLastRow(),
+    totalColumnas: totalColumnas,
+    letras: letras,
+    encabezados: encabezados,
+    filaEjemplo: filaEjemplo
+  });
+}
+
+// Convierte un índice 0-based a letra de columna estilo Sheets (0->A, 1->B, ..., 26->AA)
+function columnaALetra(indice) {
+  var letra = '';
+  var n = indice;
+  while (n >= 0) {
+    letra = String.fromCharCode((n % 26) + 65) + letra;
+    n = Math.floor(n / 26) - 1;
+  }
+  return letra;
+}
+
+// Busca cualquier pestaña cuyo nombre contenga "EVENTO" (tolerante a
+// tildes/mayúsculas/espacios). Si no existe, devuelve null — a diferencia
+// de encontrarHojaBase(), acá NO hay respaldo a la primera hoja porque es
+// una hoja aparte y opcional, no la base de datos principal de la app.
+function encontrarHojaEvento(ss) {
+  var hojas = ss.getSheets();
+  for (var i = 0; i < hojas.length; i++) {
+    if (normalizarTexto(hojas[i].getName()).indexOf('EVENTO') !== -1) return hojas[i];
+  }
+  return null;
+}
+
+function obtenerDatosEvento() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = encontrarHojaEvento(ss);
+  if (!sheet) return null;
+  var totalFilas = sheet.getLastRow();
+  if (totalFilas < 1) return null;
+  var info = obtenerEncabezados(sheet);
+  // Empieza en la fila 2: se asume que la fila 1 tiene encabezados.
+  var data = totalFilas > 1 ? sheet.getRange(2, 1, totalFilas - 1, info.totalColumnas).getValues() : [];
+  return { data: data, col: info.col, colOpcional: info.colOpcional };
+}
+
+function armarProductoEvento(row, col, colOpcional) {
+  var leer = function (nombre) {
+    var idx = colOpcional(nombre);
+    return idx === -1 ? null : row[idx];
+  };
+  return {
+    tienda: (leer('Tienda') || '').toString().trim(),
+    codigo: (leer('Codigo') || '').toString().trim().padStart(7, '0'),
+    marca: leer('Marca'),
+    genero: leer('Genero'),
+    // Se reutilizan los nombres tipoProducto/precioInicial/precioAntes para que
+    // el frontend (filtros, tarjetas, PDF) trate los items de evento igual que
+    // los de BASE PRECIOS sin necesitar lógica aparte.
+    tipoProducto: leer('Categoria'),
+    subcategoria: leer('Subcategoria'),
+    precioInicial: leer('Precio Lleno'),
+    precioAntes: leer('Precio Oferta Anterior'),
+    precioOferta: leer('Nuevo Precio Oferta'),
+    stock: leer('Stock')
+  };
+}
+
+// Lista los nombres de tienda distintos que aparecen en la columna "Tienda",
+// para poblar el selector de "cuál tienda soy" en el frontend.
+function listarTiendasEvento() {
+  var info = obtenerDatosEvento();
+  if (!info) return salida({ encontrado: false, error: 'No se encontró la hoja de Evento Outlet' });
+  var idxTienda = info.col('Tienda');
+
+  var vistas = {};
+  var tiendas = [];
+  info.data.forEach(function (row) {
+    var t = (row[idxTienda] || '').toString().trim();
+    if (t && !vistas[t]) {
+      vistas[t] = true;
+      tiendas.push(t);
+    }
+  });
+  tiendas.sort();
+  return salida({ encontrado: true, tiendas: tiendas });
+}
+
+function buscarCodigoEvento(codigoBuscar, tiendaEvento) {
+  var info = obtenerDatosEvento();
+  if (!info) return salida({ encontrado: false });
+
+  var idxCodigo = info.col('Codigo');
+  var idxTienda = info.col('Tienda');
+  var buscado = normalizarCodigo(codigoBuscar || '');
+  var tiendaNorm = normalizarTexto(tiendaEvento || '');
+
+  for (var i = 0; i < info.data.length; i++) {
+    var row = info.data[i];
+    var codigoFila = normalizarCodigo(row[idxCodigo] || '');
+    var tiendaFila = normalizarTexto(row[idxTienda] || '');
+    if (codigoFila === buscado && (!tiendaNorm || tiendaFila === tiendaNorm)) {
+      var resultado = armarProductoEvento(row, info.col, info.colOpcional);
+      resultado.encontrado = true;
+      return salida(resultado);
+    }
+  }
+  return salida({ encontrado: false });
+}
+
+// Trae todo el stock de una tienda de evento (el frontend filtra/pagina
+// del lado del cliente, igual que con las categorías de BASE PRECIOS).
+function listarEvento(tiendaEvento) {
+  var info = obtenerDatosEvento();
+  if (!info) return salida({ encontrado: true, items: [] });
+
+  var idxCodigo = info.col('Codigo');
+  var idxTienda = info.col('Tienda');
+  var tiendaNorm = normalizarTexto(tiendaEvento || '');
+  var items = [];
+  for (var i = 0; i < info.data.length; i++) {
+    var row = info.data[i];
+    var codigoFila = (row[idxCodigo] || '').toString().trim();
+    if (!codigoFila) continue;
+    var tiendaFila = normalizarTexto(row[idxTienda] || '');
+    if (!tiendaNorm || tiendaFila === tiendaNorm) {
+      items.push(armarProductoEvento(row, info.col, info.colOpcional));
     }
   }
   return salida({ encontrado: true, items: items });
