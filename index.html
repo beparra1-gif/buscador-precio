@@ -25,48 +25,25 @@
 
 <div class="card">
 
-    <!-- PANTALLA 0: SELECCIÓN DE TIPO DE TIENDA -->
+    <!-- PANTALLA 0: INGRESO DE TIENDA POR EDP (define nombre, cadena, canal de precios y stock) -->
     <div id="view-0" class="view active">
-        <h2>Seleccione Tipo de Tienda</h2>
-        <p style="text-align:center; color:var(--text-muted); font-size:13px; margin-top:-15px; margin-bottom:25px;">Los precios se mostrarán seg&uacute;n el canal que elija</p>
+        <h2>Ingrese su Tienda</h2>
+        <p style="text-align:center; color:var(--text-muted); font-size:13px; margin-top:-15px; margin-bottom:25px;">Digite el EDP de su tienda. Ver&aacute; los precios de su cadena y solo los art&iacute;culos con stock en ella</p>
 
-        <button class="btn-primary btn-outline btn-tienda" onclick="seleccionarTienda('estandar')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l8-4v18"></path><path d="M19 21V11l-6-4"></path></svg>
-            Tienda Est&aacute;ndar
-        </button>
-
-        <button class="btn-primary btn-outline btn-tienda" onclick="seleccionarTienda('outlet')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4z"></path></svg>
-            Outlet
-        </button>
-
-        <button class="btn-primary btn-outline btn-tienda" onclick="seleccionarTienda('evento')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"></path><circle cx="7.5" cy="7.5" r="1.5"></circle></svg>
-            Tienda Evento
-        </button>
-    </div>
-
-    <!-- PANTALLA 0-EVENTO: SELECCIÓN DE TIENDA FÍSICA (solo canal Evento) -->
-    <div id="view-0-evento" class="view">
-        <h2>Seleccione su Tienda</h2>
-        <p style="text-align:center; color:var(--text-muted); font-size:13px; margin-top:-15px; margin-bottom:25px;">Va a ver solo el stock y los c&oacute;digos de esta tienda</p>
-
-        <div class="filtro-grupo">
-            <label>Tienda</label>
-            <select id="selectTiendaEvento" class="filter-select-full">
-                <option value="">Cargando tiendas...</option>
-            </select>
+        <div class="input-group">
+            <input type="text" id="edpInput" inputmode="numeric" pattern="[0-9]*" placeholder="EDP de la tienda (ej. 105)" style="padding-left:16px;" oninput="previsualizarTienda()" onkeydown="if(event.key==='Enter') confirmarTiendaStock()">
         </div>
+        <div id="previewTienda" class="preview-tienda" style="display:none;"></div>
+        <p id="infoSemanaStock" style="text-align:center; color:var(--text-light); font-size:12px; margin:0 0 15px;"></p>
 
-        <button class="btn-primary" onclick="confirmarTiendaEvento()">Continuar</button>
-        <button class="btn-volver" onclick="cambiarVista('view-0')">Volver</button>
+        <button class="btn-primary" onclick="confirmarTiendaStock()">Continuar</button>
     </div>
 
     <!-- PANTALLA 1: BUSCADOR PRINCIPAL -->
     <div id="view-1" class="view">
         <h2>Buscador de Art&iacute;culos</h2>
 
-        <div class="tienda-chip" onclick="cambiarVista('view-0')" title="Cambiar tipo de tienda">
+        <div class="tienda-chip" onclick="abrirSelectorTienda()" title="Cambiar tienda">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l8-4v18"></path><path d="M19 21V11l-6-4"></path></svg>
             <span id="tiendaActualLabel">--</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -91,7 +68,7 @@
 
         <div class="menu-title">Oportunidades y Alertas</div>
 
-        <div id="menuEstandarOutlet">
+        <div id="menuAlertas">
             <button class="btn-primary btn-outline alert" onclick="cargarLista('SUBE', 'Alzas de Precio')">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                 Alzas de Precio
@@ -112,13 +89,6 @@
                 Obsolescencia
             </button>
         </div>
-
-        <div id="menuEvento" style="display:none;">
-            <button class="btn-primary btn-outline" onclick="cargarListaEvento()">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3z"></path><path d="M5 7v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7"></path><line x1="10" y1="12" x2="14" y2="12"></line></svg>
-                Ver Stock de mi Tienda
-            </button>
-        </div>
     </div>
 
     <!-- PANTALLA 2: DETALLE DEL PRODUCTO -->
@@ -135,7 +105,6 @@
             <div class="info-item"><span class="info-label">G&eacute;nero:</span> <span id="outGenero">---</span></div>
             <div class="info-item"><span class="info-label" id="lblTipoProd">Tipo Producto:</span> <span id="outTipoProd">---</span></div>
             <div class="info-item"><span class="info-label" id="lblProyecto">Proyecto:</span> <span id="outProyecto">---</span></div>
-            <div class="info-item" id="filaStock" style="display:none;"><span class="info-label">Stock:</span> <span id="outStock">---</span></div>
         </div>
 
         <!-- CONTENEDOR DE PRECIOS -->
@@ -226,10 +195,6 @@
             <div class="filtro-grupo">
                 <label>Tipo de Producto</label>
                 <select id="filterTipo" class="filter-select-full"><option value="ALL">Todos los Tipos</option></select>
-            </div>
-            <div class="filtro-grupo" id="grupoFiltroSubcategoria" style="display:none;">
-                <label>Subcategor&iacute;a</label>
-                <select id="filterSubcategoria" class="filter-select-full"><option value="ALL">Todas</option></select>
             </div>
             <div class="filtro-grupo" id="grupoFiltroPrecio">
                 <label>Rango de Precio</label>

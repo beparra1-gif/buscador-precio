@@ -14,23 +14,32 @@ function doGet(e) {
   if (accion === 'debug') {
     return debugHojas();
   }
-  if (accion === 'debugEvento') {
-    return debugEvento();
-  }
-  if (accion === 'listarTiendasEvento') {
-    return listarTiendasEvento();
-  }
-  if (accion === 'buscarCodigoEvento') {
-    return buscarCodigoEvento(e.parameter.codigo, e.parameter.tiendaEvento);
-  }
-  if (accion === 'listarEvento') {
-    return listarEvento(e.parameter.tiendaEvento);
+  if (accion === 'listarTiendasStock') {
+    return listarTiendasStock();
   }
   if (accion === 'listarCategoria') {
-    return listarCategoria(e.parameter.categoria, e.parameter.tienda);
+    return listarCategoria(e.parameter.categoria, e.parameter.tienda, e.parameter.tiendaStock);
   }
   // Por defecto (o accion === 'buscarCodigo'): buscar por código
-  return buscarCodigo(e.parameter.codigo);
+  return buscarCodigo(e.parameter.codigo, e.parameter.tiendaStock);
+}
+
+// Recibe la carga diaria de stock desde scripts/actualizar_stock.py (PC local).
+// Protegido con un token guardado en Configuración del proyecto > Propiedades
+// del script > STOCK_TOKEN (nunca en el código, porque el repo es público).
+function doPost(e) {
+  var cuerpo;
+  try {
+    cuerpo = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return salida({ ok: false, error: 'JSON inválido' });
+  }
+  var tokenEsperado = PropertiesService.getScriptProperties().getProperty('STOCK_TOKEN');
+  if (!tokenEsperado || cuerpo.token !== tokenEsperado) {
+    return salida({ ok: false, error: 'Token inválido' });
+  }
+  if (cuerpo.action === 'subirStock') return subirStock(cuerpo);
+  return salida({ ok: false, error: 'Acción desconocida' });
 }
 
 // Endpoint temporal de diagnóstico: ?action=debug
@@ -92,7 +101,7 @@ function obtenerEncabezados(sheet) {
 // Columnas que la app realmente necesita. Se usan para no leer más ancho de
 // hoja del que hace falta (evita traer W4/W3/W2/W1 y otras columnas sin uso).
 var CAMPOS_REQUERIDOS = [
-  'Cod 7 texto', 'Marca', 'GENERO', 'TIPO PRODUCTO', 'Proyecto',
+  'Cod 7 texto', 'Cod Art Numero', 'Marca', 'GENERO', 'TIPO PRODUCTO', 'Proyecto',
   'Full Price Retail', 'Precio Antes', 'Nuevo Precio Final', 'Precios Outlet', 'Precio 30 tiendas',
   'Obsolescencia final', 'OBSERVACION STANDAR', 'OBSERVACION OUTLET'
 ];
@@ -131,15 +140,23 @@ function armarProducto(row, col, colOpcional) {
     var v = leer(nombre);
     return v === null || v === undefined ? '' : v.toString();
   };
+  // Si la columna principal viene vacía para esta fila (no siempre está
+  // cargada "Nuevo Precio Final"), usa la de respaldo en vez de dejar el
+  // precio en blanco.
+  var leerConRespaldo = function (principal, respaldo) {
+    var v = leer(principal);
+    return (v === null || v === undefined || v === '') ? leer(respaldo) : v;
+  };
   return {
     codigo: row[col('Cod 7 texto')].toString().trim().padStart(7, '0'),
+    codArtNumero: leerTexto('Cod Art Numero').trim(),
     marca: leer('Marca'),
     genero: leer('GENERO'),
     tipoProducto: leer('TIPO PRODUCTO'),
     proyecto: leer('Proyecto'),
     fullPriceRetail: leer('Full Price Retail'),
     precioAntes: leer('Precio Antes'),
-    precioTienda: leer('Nuevo Precio Final'),
+    precioTienda: leerConRespaldo('Nuevo Precio Final', 'Precios Tiendas'),
     precioOutlet: leer('Precios Outlet'),
     precioPiloto: leer('Precio 30 tiendas'),
     obsolescencia: leerTexto('Obsolescencia final').trim()
@@ -150,7 +167,7 @@ function armarProducto(row, col, colOpcional) {
 // busca directo en la columna del código (como un Ctrl+F, corre del lado
 // de Sheets) y recién ahí lee la única fila que interesa. Mucho más rápido
 // que buscarCodigo cargando todo con obtenerDatos().
-function buscarCodigo(codigoBuscar) {
+function buscarCodigo(codigoBuscar, tiendaStock) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = encontrarHojaBase(ss);
   var info = obtenerEncabezados(sheet);
@@ -167,6 +184,14 @@ function buscarCodigo(codigoBuscar) {
   var filaValores = sheet.getRange(encontrada.getRow(), 1, 1, info.totalColumnas).getValues()[0];
   var resultado = armarProducto(filaValores, info.col, info.colOpcional);
   resultado.encontrado = true;
+  // Con tienda elegida, se informa cuánto stock tiene esa tienda del artículo
+  // (0 si no tiene); el producto se muestra igual para poder consultar precio.
+  if (tiendaStock) {
+    var stockTienda = leerStockTienda(tiendaStock);
+    if (stockTienda) {
+      resultado.stock = stockTienda.articulos[normalizarCodigo(resultado.codArtNumero)] || 0;
+    }
+  }
   return salida(resultado);
 }
 
@@ -185,10 +210,32 @@ function columnaObservacionPorTienda(tienda) {
   return tienda === 'outlet' ? 'OBSERVACION OUTLET' : 'OBSERVACION STANDAR';
 }
 
-function listarCategoria(categoria, tienda) {
+function listarCategoria(categoria, tienda, tiendaStock) {
   var info = obtenerDatos();
   var data = info.data, col = info.col, colOpcional = info.colOpcional;
   var items = [];
+
+  // Con tienda elegida, solo se listan los artículos que esa tienda tiene en
+  // stock (cruce de "Cod Art Numero" contra la columna articulo del archivo
+  // de stock), y cada item lleva su cantidad.
+  var stockTienda = null, idxCodArt = -1;
+  if (tiendaStock) {
+    stockTienda = leerStockTienda(tiendaStock);
+    if (!stockTienda) return salida({ encontrado: false, error: 'No hay stock cargado para la tienda ' + tiendaStock });
+    idxCodArt = col('Cod Art Numero');
+  }
+  var agregar = function (row) {
+    var producto = armarProducto(row, col, colOpcional);
+    if (stockTienda) {
+      var cantidad = stockTienda.articulos[normalizarCodigo(row[idxCodArt] || '')];
+      if (!cantidad) return;
+      producto.stock = cantidad;
+    }
+    items.push(producto);
+  };
+  var respuesta = function () {
+    return salida({ encontrado: true, items: items, semanaStock: stockTienda ? stockTienda.semana : null });
+  };
 
   // Categoría especial: no filtra por observación de canal sino por la
   // columna "Obsolescencia final" (solo productos marcados 50 o 100).
@@ -197,10 +244,10 @@ function listarCategoria(categoria, tienda) {
     for (var i = 1; i < data.length; i++) {
       var valObs = idxObs === -1 ? '' : (data[i][idxObs] || '').toString().trim();
       if (valObs === '50' || valObs === '100') {
-        items.push(armarProducto(data[i], col, colOpcional));
+        agregar(data[i]);
       }
     }
-    return salida({ encontrado: true, items: items });
+    return respuesta();
   }
 
   var idxEstatus = col(columnaObservacionPorTienda(tienda));
@@ -210,162 +257,103 @@ function listarCategoria(categoria, tienda) {
     var estatus = normalizarTexto(data[j][idxEstatus] || '');
     var coincide = candidatos.some(function (c) { return estatus.indexOf(c) !== -1; });
     if (coincide) {
-      items.push(armarProducto(data[j], col, colOpcional));
+      agregar(data[j]);
     }
   }
-  return salida({ encontrado: true, items: items });
+  return respuesta();
 }
 
-// ===================== EVENTO OUTLET =====================
-// Hoja aparte de liquidaciones por tienda física (pestaña "TIENDAS EVENTO",
-// detectada por contener "EVENTO" en el nombre). Se lee por NOMBRE de
-// encabezado, igual que BASE PRECIOS (reutiliza obtenerEncabezados), porque
-// los encabezados reales de esta hoja son:
-// Tienda | Codigo | Marca | Genero | Categoria | Subcategoria | Proyecto |
-// Observación | Precio Lleno | Precio Oferta Anterior | Nuevo Precio Oferta | Stock
+// ===================== STOCK POR TIENDA =====================
+// El stock viene del archivo Obsolescencia_Unido_<año>.txt (1,7 GB, en
+// SharePoint), que Apps Script no puede leer. scripts/actualizar_stock.py lo
+// procesa en la PC (solo la última semana, ubicación EN TIENDA) y lo manda
+// por doPost a estas dos pestañas:
+//   STOCK TIENDAS: Tienda | Parte | Articulos  ("1010346:5,1010410:2,...";
+//                  una tienda grande ocupa varias filas porque una celda no
+//                  admite más de 50.000 caracteres)
+//   STOCK META:    Tienda | Nombre | Tipo | Cadena | Evento | Articulos | Semana | Actualizado
+//                  (Nombre = GLOSA TIENDA y Cadena = cadena townhall de BASE.xlsx;
+//                  Tipo = outlet para cadena OUTLET, estandar para el resto;
+//                  Evento = SI si la columna Eventos dice "Evento Outlet")
+var HOJA_STOCK = 'STOCK TIENDAS';
+var HOJA_STOCK_META = 'STOCK META';
 
-// Endpoint temporal de diagnóstico: ?action=debugEvento
-// Muestra los encabezados reales y una fila de ejemplo de la hoja Evento
-// Outlet, para confirmar en qué columna está cada dato. Se puede borrar
-// una vez que COL_EVENTO esté confirmado.
-function debugEvento() {
+function subirStock(cuerpo) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+    escribirHojaTexto(ss, HOJA_STOCK, ['Tienda', 'Parte', 'Articulos'], cuerpo.filasStock);
+    var filasMeta = cuerpo.filasMeta.map(function (f) { return f.concat([cuerpo.semana, ahora]); });
+    escribirHojaTexto(ss, HOJA_STOCK_META, ['Tienda', 'Nombre', 'Tipo', 'Cadena', 'Evento', 'Articulos', 'Semana', 'Actualizado'], filasMeta);
+    return salida({ ok: true, semana: cuerpo.semana, tiendas: filasMeta.length, filas: cuerpo.filasStock.length });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Formato texto (@) antes de escribir: si no, Sheets convierte "1010346:5"
+// en una hora y los códigos de tienda pierden su forma original.
+function escribirHojaTexto(ss, nombre, encabezados, filas) {
+  var hoja = ss.getSheetByName(nombre) || ss.insertSheet(nombre);
+  hoja.clearContents();
+  var valores = [encabezados].concat(filas.map(function (f) { return f.map(String); }));
+  hoja.getRange(1, 1, valores.length, encabezados.length).setNumberFormat('@').setValues(valores);
+}
+
+// Devuelve { semana, articulos: { codArtNormalizado: cantidad } } de una
+// tienda, o null si la tienda no tiene stock cargado. Busca solo las filas
+// de esa tienda con TextFinder en vez de leer toda la pestaña.
+function leerStockTienda(tiendaKey) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = encontrarHojaEvento(ss);
-  if (!sheet) return salida({ encontrado: false, error: 'No se encontró ninguna hoja con "EVENTO" en el nombre' });
-  var totalColumnas = sheet.getLastColumn();
-  var encabezados = sheet.getRange(1, 1, 1, totalColumnas).getValues()[0];
-  var filaEjemplo = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, 1, totalColumnas).getValues()[0] : [];
-  var letras = encabezados.map(function (_, i) { return columnaALetra(i); });
+  var hoja = ss.getSheetByName(HOJA_STOCK);
+  if (!hoja || hoja.getLastRow() < 2) return null;
+  var clave = tiendaKey.toString().trim();
+  var celdas = hoja.getRange(2, 1, hoja.getLastRow() - 1, 1)
+    .createTextFinder(clave).matchEntireCell(true).findAll();
+  if (celdas.length === 0) return null;
+
+  var articulos = {};
+  celdas.forEach(function (celda) {
+    var texto = hoja.getRange(celda.getRow(), 3).getValue().toString();
+    texto.split(',').forEach(function (par) {
+      var partes = par.split(':');
+      if (partes.length === 2) articulos[normalizarCodigo(partes[0])] = Number(partes[1]) || 0;
+    });
+  });
+  return { semana: leerSemanaStock(ss), articulos: articulos };
+}
+
+function leerSemanaStock(ss) {
+  var meta = ss.getSheetByName(HOJA_STOCK_META);
+  return meta && meta.getLastRow() >= 2 ? meta.getRange(2, 7).getValue().toString() : null;
+}
+
+// Lista las tiendas con stock (EDP, nombre, cadena y canal de precios) para
+// que el frontend valide la EDP que digita el usuario y arme el header.
+function listarTiendasStock() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var meta = ss.getSheetByName(HOJA_STOCK_META);
+  if (!meta || meta.getLastRow() < 2) return salida({ encontrado: false, error: 'Aún no se ha cargado el stock por tienda' });
+
+  var filas = meta.getRange(2, 1, meta.getLastRow() - 1, 8).getValues();
+  var tiendas = filas.map(function (f) {
+    return {
+      tienda: f[0].toString(),
+      nombre: f[1].toString(),
+      tipo: f[2].toString() === 'outlet' ? 'outlet' : 'estandar',
+      cadena: f[3].toString(),
+      evento: f[4].toString() === 'SI',
+      articulos: Number(f[5]) || 0
+    };
+  });
   return salida({
     encontrado: true,
-    hoja: sheet.getName(),
-    totalFilas: sheet.getLastRow(),
-    totalColumnas: totalColumnas,
-    letras: letras,
-    encabezados: encabezados,
-    filaEjemplo: filaEjemplo
+    tiendas: tiendas,
+    semana: filas[0][6].toString(),
+    actualizado: filas[0][7].toString()
   });
-}
-
-// Convierte un índice 0-based a letra de columna estilo Sheets (0->A, 1->B, ..., 26->AA)
-function columnaALetra(indice) {
-  var letra = '';
-  var n = indice;
-  while (n >= 0) {
-    letra = String.fromCharCode((n % 26) + 65) + letra;
-    n = Math.floor(n / 26) - 1;
-  }
-  return letra;
-}
-
-// Busca cualquier pestaña cuyo nombre contenga "EVENTO" (tolerante a
-// tildes/mayúsculas/espacios). Si no existe, devuelve null — a diferencia
-// de encontrarHojaBase(), acá NO hay respaldo a la primera hoja porque es
-// una hoja aparte y opcional, no la base de datos principal de la app.
-function encontrarHojaEvento(ss) {
-  var hojas = ss.getSheets();
-  for (var i = 0; i < hojas.length; i++) {
-    if (normalizarTexto(hojas[i].getName()).indexOf('EVENTO') !== -1) return hojas[i];
-  }
-  return null;
-}
-
-function obtenerDatosEvento() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = encontrarHojaEvento(ss);
-  if (!sheet) return null;
-  var totalFilas = sheet.getLastRow();
-  if (totalFilas < 1) return null;
-  var info = obtenerEncabezados(sheet);
-  // Empieza en la fila 2: se asume que la fila 1 tiene encabezados.
-  var data = totalFilas > 1 ? sheet.getRange(2, 1, totalFilas - 1, info.totalColumnas).getValues() : [];
-  return { data: data, col: info.col, colOpcional: info.colOpcional };
-}
-
-function armarProductoEvento(row, col, colOpcional) {
-  var leer = function (nombre) {
-    var idx = colOpcional(nombre);
-    return idx === -1 ? null : row[idx];
-  };
-  return {
-    tienda: (leer('Tienda') || '').toString().trim(),
-    codigo: (leer('Codigo') || '').toString().trim().padStart(7, '0'),
-    marca: leer('Marca'),
-    genero: leer('Genero'),
-    // Se reutilizan los nombres tipoProducto/precioInicial/precioAntes para que
-    // el frontend (filtros, tarjetas, PDF) trate los items de evento igual que
-    // los de BASE PRECIOS sin necesitar lógica aparte.
-    tipoProducto: leer('Categoria'),
-    subcategoria: leer('Subcategoria'),
-    precioInicial: leer('Precio Lleno'),
-    precioAntes: leer('Precio Oferta Anterior'),
-    precioOferta: leer('Nuevo Precio Oferta'),
-    stock: leer('Stock')
-  };
-}
-
-// Lista los nombres de tienda distintos que aparecen en la columna "Tienda",
-// para poblar el selector de "cuál tienda soy" en el frontend.
-function listarTiendasEvento() {
-  var info = obtenerDatosEvento();
-  if (!info) return salida({ encontrado: false, error: 'No se encontró la hoja de Evento Outlet' });
-  var idxTienda = info.col('Tienda');
-
-  var vistas = {};
-  var tiendas = [];
-  info.data.forEach(function (row) {
-    var t = (row[idxTienda] || '').toString().trim();
-    if (t && !vistas[t]) {
-      vistas[t] = true;
-      tiendas.push(t);
-    }
-  });
-  tiendas.sort();
-  return salida({ encontrado: true, tiendas: tiendas });
-}
-
-function buscarCodigoEvento(codigoBuscar, tiendaEvento) {
-  var info = obtenerDatosEvento();
-  if (!info) return salida({ encontrado: false });
-
-  var idxCodigo = info.col('Codigo');
-  var idxTienda = info.col('Tienda');
-  var buscado = normalizarCodigo(codigoBuscar || '');
-  var tiendaNorm = normalizarTexto(tiendaEvento || '');
-
-  for (var i = 0; i < info.data.length; i++) {
-    var row = info.data[i];
-    var codigoFila = normalizarCodigo(row[idxCodigo] || '');
-    var tiendaFila = normalizarTexto(row[idxTienda] || '');
-    if (codigoFila === buscado && (!tiendaNorm || tiendaFila === tiendaNorm)) {
-      var resultado = armarProductoEvento(row, info.col, info.colOpcional);
-      resultado.encontrado = true;
-      return salida(resultado);
-    }
-  }
-  return salida({ encontrado: false });
-}
-
-// Trae todo el stock de una tienda de evento (el frontend filtra/pagina
-// del lado del cliente, igual que con las categorías de BASE PRECIOS).
-function listarEvento(tiendaEvento) {
-  var info = obtenerDatosEvento();
-  if (!info) return salida({ encontrado: true, items: [] });
-
-  var idxCodigo = info.col('Codigo');
-  var idxTienda = info.col('Tienda');
-  var tiendaNorm = normalizarTexto(tiendaEvento || '');
-  var items = [];
-  for (var i = 0; i < info.data.length; i++) {
-    var row = info.data[i];
-    var codigoFila = (row[idxCodigo] || '').toString().trim();
-    if (!codigoFila) continue;
-    var tiendaFila = normalizarTexto(row[idxTienda] || '');
-    if (!tiendaNorm || tiendaFila === tiendaNorm) {
-      items.push(armarProductoEvento(row, info.col, info.colOpcional));
-    }
-  }
-  return salida({ encontrado: true, items: items });
 }
 
 function salida(obj) {

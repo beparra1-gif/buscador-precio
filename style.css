@@ -187,3 +187,14 @@ h2 { text-align: center; color: var(--text-main); margin-top: 0; margin-bottom: 
 .toast { background: var(--text-main); color: white; padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 500; box-shadow: 0 4px 15px rgba(0,0,0,0.2); opacity: 0; transform: translateY(-10px); transition: all 0.25s ease; text-align: center; }
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.error { background: var(--accent-red); }
+
+/* Ingreso de tienda por EDP: vista previa de nombre / cadena / canal */
+.preview-tienda { background: var(--bg-body); border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 14px; margin: -8px 0 12px; text-align: center; }
+.preview-tienda .preview-nombre { font-weight: 700; color: var(--text-main); font-size: 15px; }
+.preview-tienda .preview-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.preview-tienda.no-encontrada { color: var(--accent-red); font-size: 13px; }
+
+/* Pastilla de stock de la tienda, al lado del código (listados y detalle) */
+.item-stock { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #DCFCE7; color: #166534; font-size: 11px; font-weight: 700; letter-spacing: 0; vertical-align: middle; white-space: nowrap; }
+.item-stock.sin-stock { background: var(--bg-body); color: var(--text-muted); }
+.title-codigo .item-stock { font-size: 14px; padding: 3px 8px; margin-left: 10px; }

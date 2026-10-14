@@ -1,0 +1,7 @@
+{
+  "url_api": "https://script.google.com/macros/s/XXXXXXXX/exec",
+  "token": "mismo valor que STOCK_TOKEN en Propiedades del script de Apps Script",
+  "carpeta_stock": "C:/Users/bernardo.parra.BATA/Bata Shoe Organization/Operaciones Chile - Documentos/BASE DE DATOS B.P/Obsolescencia-stock/Obs",
+  "tiendas_xlsx": "C:/Users/bernardo.parra.BATA/Bata Shoe Organization/Operaciones Chile - Documentos/BASE DE DATOS B.P/BASES/BASE.xlsx",
+  "tiendas_hoja": "DM+BASE DATOS TIENDA"
+}
