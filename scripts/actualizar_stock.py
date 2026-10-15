@@ -96,16 +96,14 @@ def leer_stock_ultima_semana(ruta):
 def leer_maestro_tiendas(ruta, hoja):
     """Maestro de tiendas (BASE.xlsx, hoja "DM+BASE DATOS TIENDA"):
     EDP = tienda_key del stock, GLOSA TIENDA = nombre que ve el usuario,
-    cadena townhall = cadena (BATA, BUBBLE GUMMERS, WEINBRENNER, OUTLET...),
-    Eventos = "Evento Outlet" marca las tiendas que se muestran como Tienda Evento.
-    Las tiendas de cadena OUTLET (o con OUTLET en el nombre) usan precios
+    cadena townhall = cadena (BATA, BUBBLE GUMMERS, WEINBRENNER, OUTLET...).
+    El canal de precios sale solo de la cadena townhall: OUTLET usa precios
     Outlet; todas las demás, precios Estándar."""
     import openpyxl  # solo hace falta para el maestro: pip install openpyxl
     libro = openpyxl.load_workbook(ruta, read_only=True, data_only=True)
     filas = libro[hoja].iter_rows(values_only=True)
     enc = [str(c or '').strip().lower() for c in next(filas)]
     i_edp, i_nombre, i_cadena = enc.index('edp'), enc.index('glosa tienda'), enc.index('cadena townhall')
-    i_evento = enc.index('eventos') if 'eventos' in enc else -1
     maestro = {}
     for f in filas:
         if f[i_edp] is None:
@@ -113,10 +111,7 @@ def leer_maestro_tiendas(ruta, hoja):
         edp = str(f[i_edp]).strip().lstrip('0') or '0'
         nombre = str(f[i_nombre] or '').strip()
         cadena = str(f[i_cadena] or '').strip().upper()
-        es_outlet = cadena == 'OUTLET' or 'OUTLET' in nombre.upper()
-        es_evento = i_evento != -1 and 'EVENTO' in str(f[i_evento] or '').upper()
-        maestro[edp] = {'nombre': nombre, 'cadena': cadena, 'tipo': 'outlet' if es_outlet else 'estandar',
-                        'evento': 'SI' if es_evento else ''}
+        maestro[edp] = {'nombre': nombre, 'cadena': cadena, 'tipo': 'outlet' if cadena == 'OUTLET' else 'estandar'}
     libro.close()
     return maestro
 
@@ -144,7 +139,7 @@ def armar_filas(stock, maestro):
             partes.append(actual)
         for n, texto in enumerate(partes, start=1):
             filas_stock.append([tienda, n, texto])
-        filas_meta.append([tienda, info.get('nombre', ''), info.get('tipo', 'estandar'), info.get('cadena', ''), info.get('evento', ''), len(arts)])
+        filas_meta.append([tienda, info.get('nombre', ''), info.get('tipo', 'estandar'), info.get('cadena', ''), len(arts)])
     return filas_stock, filas_meta
 
 

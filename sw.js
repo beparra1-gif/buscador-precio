@@ -1,6 +1,6 @@
 // Subir este número cada vez que se despliegue un cambio en el app shell
 // (index.html, style.css, app.js, manifest.json) para forzar la actualización de caché.
-const CACHE_VERSION = 'v12';
+const CACHE_VERSION = 'v13';
 const CACHE_NAME = `buscador-shell-${CACHE_VERSION}`;
 
 const APP_SHELL = [

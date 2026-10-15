@@ -66,7 +66,7 @@ Al entrar, el usuario **digita el EDP de su tienda** (`view-0`) y la app arma to
 - El canal de precios es automático: cadena `OUTLET` (o "OUTLET" en el nombre) → precios Outlet; todas las demás → precio Estándar.
 - Alzas / Bajas / Sin Cambios / Obsolescencia muestran **solo los artículos con stock > 0 en esa tienda**, con una pastilla "Stock: N". El detalle de un código muestra el apartado "Stock en <tienda>" (o "Sin stock en esta tienda").
 - El cruce es `articulo` del archivo de stock contra la columna **Cod Art Numero** de BASE PRECIOS.
-- Las tiendas con "Evento Outlet" en la columna **Eventos** del maestro se identifican en el header como "Tienda Evento" (sus precios siguen la regla de la cadena). Ya no existe un canal Evento aparte ni la hoja "Evento Outlet".
+- No hay lógica especial para tiendas de evento: cada tienda usa el canal de su cadena townhall (solo `OUTLET` → precios Outlet). Ya no existe un canal Evento aparte ni la hoja "Evento Outlet".
 - En los listados el código se muestra siempre con guion tras el 3er dígito (ej. 589-8773), con la pastilla de stock justo al lado; el filtro "Punta de Precio" aparece solo en tiendas Outlet.
 
 El stock sale de `Obsolescencia_Unido_<año>.txt` (SharePoint, ~1,7 GB, se regenera todos los días a las 8:00). Apps Script no puede leerlo, así que [`scripts/actualizar_stock.py`](scripts/actualizar_stock.py) lo procesa en el PC:

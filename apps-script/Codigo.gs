@@ -271,10 +271,9 @@ function listarCategoria(categoria, tienda, tiendaStock) {
 //   STOCK TIENDAS: Tienda | Parte | Articulos  ("1010346:5,1010410:2,...";
 //                  una tienda grande ocupa varias filas porque una celda no
 //                  admite más de 50.000 caracteres)
-//   STOCK META:    Tienda | Nombre | Tipo | Cadena | Evento | Articulos | Semana | Actualizado
+//   STOCK META:    Tienda | Nombre | Tipo | Cadena | Articulos | Semana | Actualizado
 //                  (Nombre = GLOSA TIENDA y Cadena = cadena townhall de BASE.xlsx;
-//                  Tipo = outlet para cadena OUTLET, estandar para el resto;
-//                  Evento = SI si la columna Eventos dice "Evento Outlet")
+//                  Tipo = outlet para cadena OUTLET, estandar para el resto)
 var HOJA_STOCK = 'STOCK TIENDAS';
 var HOJA_STOCK_META = 'STOCK META';
 
@@ -286,7 +285,7 @@ function subirStock(cuerpo) {
     var ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
     escribirHojaTexto(ss, HOJA_STOCK, ['Tienda', 'Parte', 'Articulos'], cuerpo.filasStock);
     var filasMeta = cuerpo.filasMeta.map(function (f) { return f.concat([cuerpo.semana, ahora]); });
-    escribirHojaTexto(ss, HOJA_STOCK_META, ['Tienda', 'Nombre', 'Tipo', 'Cadena', 'Evento', 'Articulos', 'Semana', 'Actualizado'], filasMeta);
+    escribirHojaTexto(ss, HOJA_STOCK_META, ['Tienda', 'Nombre', 'Tipo', 'Cadena', 'Articulos', 'Semana', 'Actualizado'], filasMeta);
     return salida({ ok: true, semana: cuerpo.semana, tiendas: filasMeta.length, filas: cuerpo.filasStock.length });
   } finally {
     lock.releaseLock();
@@ -327,7 +326,7 @@ function leerStockTienda(tiendaKey) {
 
 function leerSemanaStock(ss) {
   var meta = ss.getSheetByName(HOJA_STOCK_META);
-  return meta && meta.getLastRow() >= 2 ? meta.getRange(2, 7).getValue().toString() : null;
+  return meta && meta.getLastRow() >= 2 ? meta.getRange(2, 6).getValue().toString() : null;
 }
 
 // Lista las tiendas con stock (EDP, nombre, cadena y canal de precios) para
@@ -337,22 +336,21 @@ function listarTiendasStock() {
   var meta = ss.getSheetByName(HOJA_STOCK_META);
   if (!meta || meta.getLastRow() < 2) return salida({ encontrado: false, error: 'Aún no se ha cargado el stock por tienda' });
 
-  var filas = meta.getRange(2, 1, meta.getLastRow() - 1, 8).getValues();
+  var filas = meta.getRange(2, 1, meta.getLastRow() - 1, 7).getValues();
   var tiendas = filas.map(function (f) {
     return {
       tienda: f[0].toString(),
       nombre: f[1].toString(),
       tipo: f[2].toString() === 'outlet' ? 'outlet' : 'estandar',
       cadena: f[3].toString(),
-      evento: f[4].toString() === 'SI',
-      articulos: Number(f[5]) || 0
+      articulos: Number(f[4]) || 0
     };
   });
   return salida({
     encontrado: true,
     tiendas: tiendas,
-    semana: filas[0][6].toString(),
-    actualizado: filas[0][7].toString()
+    semana: filas[0][5].toString(),
+    actualizado: filas[0][6].toString()
   });
 }
 

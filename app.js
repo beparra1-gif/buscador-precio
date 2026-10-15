@@ -104,7 +104,7 @@ function previsualizarTienda() {
     prev.className = 'preview-tienda';
     prev.innerHTML = `
         <div class="preview-nombre">${t.nombre || 'Tienda ' + t.tienda}</div>
-        <div class="preview-meta">${t.cadena || '--'}${t.evento ? ' · Tienda Evento' : ''} · Precios ${LABEL_TIENDA[t.tipo]} · ${t.articulos} artículos con stock</div>`;
+        <div class="preview-meta">${t.cadena || '--'} · Precios ${LABEL_TIENDA[t.tipo]} · ${t.articulos} artículos con stock</div>`;
 }
 
 function confirmarTiendaStock() {
@@ -115,7 +115,7 @@ function confirmarTiendaStock() {
     if (!t) return mostrarToast(`El EDP ${edp} no existe o no tiene stock cargado.`, 'error');
 
     tiendaStockActual = t.tienda;
-    infoTiendaStock = { nombre: t.nombre, cadena: t.cadena, tipo: t.tipo, evento: !!t.evento };
+    infoTiendaStock = { nombre: t.nombre, cadena: t.cadena, tipo: t.tipo };
     tiendaActual = t.tipo;
     localStorage.setItem('tiendaStockSeleccionada', tiendaStockActual);
     localStorage.setItem('tiendaStockInfo', JSON.stringify(infoTiendaStock));
@@ -128,9 +128,7 @@ function actualizarChipTienda() {
     const label = document.getElementById('tiendaActualLabel');
     if (!label) return;
     if (infoTiendaStock) {
-        // Las tiendas marcadas "Evento Outlet" en BASE.xlsx se identifican en el header
-        const evento = infoTiendaStock.evento ? ' · Tienda Evento' : '';
-        label.textContent = `${infoTiendaStock.nombre || tiendaStockActual} · ${infoTiendaStock.cadena || LABEL_TIENDA[tiendaActual]}${evento}`;
+        label.textContent = `${infoTiendaStock.nombre || tiendaStockActual} · ${infoTiendaStock.cadena || LABEL_TIENDA[tiendaActual]}`;
     } else {
         label.textContent = LABEL_TIENDA[tiendaActual] || '--';
     }
