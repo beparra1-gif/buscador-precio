@@ -35,6 +35,51 @@ function leerInfoTiendaGuardada() {
     try { return JSON.parse(localStorage.getItem('tiendaStockInfo') || 'null'); } catch (e) { return null; }
 }
 
+// Fecha de la última carga de stock ({ semana: "202644", actualizado: "2026-11-04 06:10" }).
+// Se reemplaza con lo que diga el servidor en cada respuesta (al abrir la app,
+// al buscar y al listar), así siempre se muestra la carga más reciente.
+let fechaStock = (() => {
+    try { return JSON.parse(localStorage.getItem('stockFecha') || 'null'); } catch (e) { return null; }
+})();
+
+function actualizarFechaStock(semana, actualizado) {
+    if (!semana && !actualizado) return;
+    const previa = fechaStock || { semana: '', actualizado: '' };
+    const nuevaSemana = semana ? semana.toString() : previa.semana;
+    // Si la respuesta trae solo la semana y es la misma, se conserva la hora ya conocida
+    const nuevaHora = actualizado ? actualizado.toString() : (nuevaSemana === previa.semana ? previa.actualizado : '');
+    fechaStock = { semana: nuevaSemana, actualizado: nuevaHora };
+    try { localStorage.setItem('stockFecha', JSON.stringify(fechaStock)); } catch (e) { /* sin almacenamiento */ }
+    renderFechaStock();
+}
+
+function textoFechaStock() {
+    if (!fechaStock) return '';
+    const partes = [];
+    // "2026-11-04 06:10" -> "04-11-2026 06:10"
+    const m = (fechaStock.actualizado || '').match(/^(\d{4})-(\d{2})-(\d{2})(.*)$/);
+    if (fechaStock.actualizado) partes.push('Stock actualizado ' + (m ? `${m[3]}-${m[2]}-${m[1]}${m[4]}` : fechaStock.actualizado));
+    if (fechaStock.semana && fechaStock.semana.length >= 6) partes.push(`semana ${fechaStock.semana.slice(-2)}`);
+    return partes.join(' · ');
+}
+
+function renderFechaStock() {
+    const texto = textoFechaStock();
+    document.querySelectorAll('.fecha-stock').forEach(el => {
+        el.textContent = texto;
+        el.style.display = texto ? 'block' : 'none';
+    });
+}
+
+// Aviso rojo "EVENTO OUTLET" arriba de todas las pantallas (menos la de
+// ingreso de EDP) cuando la tienda usa los precios de evento.
+function actualizarAvisoEvento() {
+    const aviso = document.getElementById('avisoEvento');
+    if (!aviso) return;
+    const enIngreso = document.getElementById('view-0').classList.contains('active');
+    aviso.style.display = (tiendaActual === 'evento' && !enIngreso) ? 'block' : 'none';
+}
+
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(err => console.log('PWA no registrada', err));
 }
@@ -52,6 +97,7 @@ function paramTiendaStock() {
 
 document.addEventListener("DOMContentLoaded", () => {
     cargarRecientes();
+    renderFechaStock();
     if (tiendaConfiguradaValida()) {
         actualizarChipTienda();
         cambiarVista('view-1');
@@ -69,6 +115,7 @@ async function refrescarTiendaGuardada() {
         const data = await fetchConTimeout(`${urlAPI}?action=listarTiendasStock`);
         if (!data.encontrado || !data.tiendas) return;
         tiendasStockCache = data.tiendas;
+        actualizarFechaStock(data.semana, data.actualizado);
         const t = buscarTiendaPorEdp(tiendaStockActual);
         if (t && (t.tipo !== tiendaActual || t.nombre !== infoTiendaStock.nombre || t.cadena !== infoTiendaStock.cadena)) {
             guardarTienda(t);
@@ -84,6 +131,7 @@ function guardarTienda(t) {
     localStorage.setItem('tiendaStockInfo', JSON.stringify(infoTiendaStock));
     localStorage.setItem('tiendaSeleccionada', tiendaActual);
     actualizarChipTienda();
+    actualizarAvisoEvento();
 }
 
 // Pantalla inicial: el usuario digita su EDP. La lista de tiendas se trae una
@@ -100,8 +148,8 @@ async function abrirSelectorTienda() {
         const data = await fetchConTimeout(`${urlAPI}?action=listarTiendasStock`);
         if (data.encontrado && data.tiendas && data.tiendas.length > 0) {
             tiendasStockCache = data.tiendas;
-            const semana = (data.semana || '').toString();
-            info.innerText = semana ? `Stock semana ${semana.slice(-2)} de ${semana.slice(0, 4)}` + (data.actualizado ? ` · actualizado ${data.actualizado}` : '') : '';
+            actualizarFechaStock(data.semana, data.actualizado);
+            info.innerText = textoFechaStock();
         } else {
             info.innerText = 'El stock por tienda aún no está cargado.';
         }
@@ -128,8 +176,9 @@ function previsualizarTienda() {
         prev.innerHTML = `EDP ${edp} no encontrada o sin stock cargado`;
         return;
     }
-    prev.className = 'preview-tienda';
+    prev.className = 'preview-tienda' + (t.tipo === 'evento' ? ' evento' : '');
     prev.innerHTML = `
+        ${t.tipo === 'evento' ? '<div class="preview-evento">EVENTO OUTLET</div>' : ''}
         <div class="preview-nombre">${t.nombre || 'Tienda ' + t.tienda}</div>
         <div class="preview-meta">${t.cadena || '--'} · Precios ${LABEL_TIENDA[t.tipo] || ''} · ${t.articulos} artículos con stock</div>`;
 }
@@ -155,40 +204,42 @@ function actualizarChipTienda() {
     }
 }
 
-// Toma un valor de un objeto, y si no existe usa un campo alterno (compatibilidad mientras se actualiza el Apps Script)
-function valorConFallback(obj, campoPrimario, campoAlterno) {
-    const v = obj[campoPrimario];
-    return (v !== undefined && v !== null && v !== '') ? v : obj[campoAlterno];
+// Precio/valor de la hoja a número: acepta 12990, "12990" o "$12.990" (NaN si viene vacío)
+function aNumero(v) {
+    if (v === undefined || v === null || v === '') return NaN;
+    if (typeof v === 'number') return Math.round(v);
+    const limpio = v.toString().replace(/\D/g, '');
+    return limpio === '' ? NaN : parseInt(limpio, 10);
+}
+
+// true si el campo trae algo que mostrar (ni vacío ni "--")
+function tieneValor(v) {
+    if (v === undefined || v === null) return false;
+    const s = v.toString().trim();
+    return s !== '' && s !== '--';
+}
+
+// Precio del canal de la tienda (Estándar / Outlet / Evento Outlet)
+function precioCanal(item) {
+    return item[CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda'];
 }
 
 // Precio de referencia contra el que se mide el canal: Full Price Retail, salvo
-// en tiendas evento, que se comparan contra el precio estándar (mismo criterio
-// que usa el backend para sus listados Alzas/Bajas/Sin Cambios).
+// en tiendas evento, que se comparan contra el precio estándar. Es el mismo
+// criterio que usa el backend (categoriaPrecio en Codigo.gs) para armar los
+// listados Alzas/Bajas/Sin Cambios, así lista, detalle y PDF siempre coinciden.
 function precioBaseCanal(item) {
-    if (tiendaActual === 'evento') return valorConFallback(item, 'precioTienda', 'nuevoPrecio');
-    return valorConFallback(item, 'fullPriceRetail', 'precioInicial');
+    return tiendaActual === 'evento' ? item.precioTienda : item.fullPriceRetail;
 }
 function labelPrecioBase() {
     return tiendaActual === 'evento' ? 'Precio Estándar' : 'Precio Inicial';
 }
 
-// % de descuento del canal seleccionado respecto al precio base (precioBaseCanal)
-function calcularDescuentoCanal(precioBase, precioCanal) {
-    const base = parseInt((precioBase || '').toString().replace(/\D/g, ''), 10);
-    const canal = parseInt((precioCanal || '').toString().replace(/\D/g, ''), 10);
-    if (!base || isNaN(base) || isNaN(canal)) return 0;
-    const pct = Math.round((base - canal) / base * 100);
-    return pct > 0 ? pct : 0;
-}
-
-// Compara el precio del canal elegido contra el Precio Inicial (Full Price Retail).
-// El estado de alza/baja se calcula del precio real de CADA canal, no del texto
-// genérico de OBSERVACION (que es un solo valor por producto, no por canal) —
-// así un canal puede marcar alza aunque el estatus general diga "se mantiene".
-function compararPrecioCanal(precioBase, precioCanal) {
-    const base = parseInt((precioBase || '').toString().replace(/\D/g, ''), 10);
-    const canal = parseInt((precioCanal || '').toString().replace(/\D/g, ''), 10);
-    if (!base || isNaN(base) || isNaN(canal)) return { tipo: 'igual', pct: 0 };
+// Alza / baja / igual del precio del canal respecto al precio base, con su %
+function compararPrecioCanal(item) {
+    const base = aNumero(precioBaseCanal(item));
+    const canal = aNumero(precioCanal(item));
+    if (!base || !canal) return { tipo: 'igual', pct: 0 };
     if (canal > base) return { tipo: 'alza', pct: Math.round((canal - base) / base * 100) };
     if (canal < base) return { tipo: 'baja', pct: Math.round((base - canal) / base * 100) };
     return { tipo: 'igual', pct: 0 };
@@ -233,11 +284,9 @@ function formatearCodigoConGuion(codigo) {
 }
 
 const formatearMoneda = (valor) => {
-    if (valor === undefined || valor === null || valor === '') return '--';
-    const strValor = valor.toString().trim();
-    if (strValor === '' || strValor === '--') return '--';
-    const numero = parseInt(strValor.replace(/\D/g, ""), 10);
-    if (isNaN(numero)) return strValor;
+    if (!tieneValor(valor)) return '--';
+    const numero = aNumero(valor);
+    if (isNaN(numero)) return valor.toString().trim();
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(numero);
 };
 
@@ -287,6 +336,7 @@ function mostrarToast(mensaje, tipo = 'info') {
 function cambiarVista(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
+    actualizarAvisoEvento();
     if(viewId === 'view-1') {
         document.getElementById('codigoInput').focus();
         cargarRecientes();
@@ -326,6 +376,8 @@ function cerrarScanner() {
 }
 
 function onScanSuccess(decodedText) {
+    // El lector puede disparar varias lecturas antes de detenerse: solo vale la primera
+    if (document.getElementById('scanner-modal').style.display === 'none') return;
     playBeep();
     cerrarScanner();
     document.getElementById('codigoInput').value = decodedText;
@@ -350,6 +402,113 @@ function cargarRecientes() {
     list.innerHTML = recents.map(c => `<div class="chip-recent" onclick="procesarCodigo('${c}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> ${c}</div>`).join('');
 }
 
+// Cada consulta a la API (búsqueda o listado) recibe un número correlativo. Si
+// el usuario lanza otra antes de que llegue la respuesta (doble toque, escaneo
+// repetido, recientes), la respuesta vieja se descarta y no pisa a la nueva.
+let consultaActual = 0;
+function iniciarConsulta() {
+    consultaActual++;
+    document.getElementById('loading').style.display = 'block';
+    return consultaActual;
+}
+// true si la consulta sigue siendo la última; si lo es, apaga el loader
+function esConsultaVigente(id) {
+    if (id !== consultaActual) return false;
+    document.getElementById('loading').style.display = 'none';
+    return true;
+}
+
+function mostrarErrorConsulta(error, mensajeConexion) {
+    if (error.name === 'AbortError') {
+        mostrarToast("La consulta demoró demasiado. Intente nuevamente.", 'error');
+    } else {
+        mostrarToast(mensajeConexion, 'error');
+    }
+}
+
+// Bloque "Precio Inicial / Precio Antes" + precio actual del detalle. "Precio
+// Antes" se omite cuando el producto no lo tiene cargado.
+function renderPreciosDetalle(data) {
+    const comparacion = compararPrecioCanal(data);
+    const precioActualTexto = formatearMoneda(precioCanal(data));
+    const hayAntes = tieneValor(data.precioAntes);
+
+    const estiloBase = comparacion.tipo === 'igual'
+        ? 'color: var(--text-muted);'
+        : 'color: var(--text-muted); text-decoration: line-through;';
+    const estiloAntes = {
+        alza: 'font-weight: 600; color: var(--text-main);',
+        baja: 'color: var(--text-muted); text-decoration: line-through;',
+        igual: 'color: var(--text-muted);'
+    }[comparacion.tipo];
+
+    const referencias = `
+        <div class="price-alza-box">
+            <div class="price-alza-item">
+                <span class="price-label">${labelPrecioBase()}</span>
+                <span style="${estiloBase}">${formatearMoneda(precioBaseCanal(data))}</span>
+            </div>
+            ${hayAntes ? `
+            <div class="price-alza-item">
+                <span class="price-label">Precio Antes</span>
+                <span style="${estiloAntes}">${formatearMoneda(data.precioAntes)}</span>
+            </div>` : ''}
+        </div>`;
+
+    let cuerpo;
+    if (comparacion.tipo === 'alza') {
+        cuerpo = `
+            ${referencias}
+            <div class="price-label" style="color: var(--accent-red); font-weight: bold;">⚠️ Novedad: Alza de Precio +${comparacion.pct}%</div>
+            <div class="price-actual alert-red">${precioActualTexto}</div>`;
+    } else if (comparacion.tipo === 'baja') {
+        cuerpo = `
+            <div style="text-align: center;"><div class="discount-badge">BAJA DE PRECIO -${comparacion.pct}%</div></div>
+            ${referencias}
+            <div class="price-label" style="margin-top: 10px;">Precio Actual</div>
+            <div class="price-actual">${precioActualTexto}</div>`;
+    } else {
+        cuerpo = `
+            ${referencias}
+            <div class="price-label">Precio Actual</div>
+            <div class="price-actual" style="color: var(--primary);">${precioActualTexto}</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">Sin variaciones recientes</div>`;
+    }
+
+    let html = `<div class="label-canal">Precio ${LABEL_TIENDA[tiendaActual] || ''}</div><div class="price-container">${cuerpo}</div>`;
+    const fechaTxt = formatearFecha(data.fechaActualizacion);
+    if (fechaTxt) {
+        html += `<div style="font-size: 11px; color: var(--text-light); text-align: center; margin-top: 8px;">Precio actualizado el ${fechaTxt}</div>`;
+    }
+    return html;
+}
+
+function renderFotoDetalle(codigo) {
+    const imgContainer = document.getElementById('imgContenedor');
+    imgContainer.innerHTML = '';
+    imgContainer.style.background = '';
+    imgContainer.style.border = '';
+    const urlBusquedaBata = `https://www.bata.com/cl/search?q=${codigo}`;
+
+    const imgElement = document.createElement('img');
+    imgElement.style.width = '100%';
+    imgElement.style.height = '100%';
+    imgElement.style.objectFit = 'contain';
+
+    let attempt = 0;
+    imgElement.onerror = function() {
+        attempt++;
+        if (attempt === 1) imgElement.src = `./fotos/${codigo}.JPG`;
+        else {
+            imgContainer.style.background = '#F9FAFB';
+            imgContainer.style.border = '1px dashed #D1D5DB';
+            imgContainer.innerHTML = `<a href="${urlBusquedaBata}" target="_blank" style="color:var(--text-muted); text-decoration:none; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; padding: 10px;"><span style="font-size:24px;">📸</span><span style="font-size:12px; font-weight:600; margin-top:5px;">Foto no encontrada</span><span style="color:var(--primary); font-size:11px; text-decoration:underline; margin-top:3px; text-align:center;">Ver en web oficial</span></a>`;
+        }
+    };
+    imgElement.src = `./fotos/${codigo}.jpg`;
+    imgContainer.appendChild(imgElement);
+}
+
 async function procesarCodigo(codDirecto = null) {
     let codigo = codDirecto || document.getElementById('codigoInput').value.trim();
     if(!codigo) return mostrarToast("Ingrese o escanee un código válido", 'error');
@@ -358,147 +517,40 @@ async function procesarCodigo(codDirecto = null) {
     codigo = codigo.padStart(7, '0');
     if(!codDirecto) document.getElementById('codigoInput').value = codigo;
 
-    document.getElementById('loading').style.display = "block";
-
-    const urlBusqueda = `${urlAPI}?action=buscarCodigo&codigo=${codigo}${paramTiendaStock()}`;
+    const id = iniciarConsulta();
+    const urlBusqueda = `${urlAPI}?action=buscarCodigo&codigo=${encodeURIComponent(codigo)}${paramTiendaStock()}`;
 
     try {
         const data = await fetchConTimeout(urlBusqueda);
-        document.getElementById('loading').style.display = "none";
+        if (!esConsultaVigente(id)) return;
 
-        if(data.encontrado) {
-            guardarReciente(codigo);
-
-            document.getElementById('tituloProducto').innerHTML = formatearCodigoConGuion(data.codigo || codigo) + renderStockTienda(data.stock);
-
-            document.getElementById('outMarca').innerText = data.marca || '--';
-            document.getElementById('outGenero').innerText = data.genero || '--';
-            document.getElementById('outTipoProd').innerText = data.tipoProducto || '--';
-            document.getElementById('outProyecto').innerText = (data.proyecto && data.proyecto.toString().trim() !== "") ? data.proyecto : '--';
-
-            const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
-            const precioBase = precioBaseCanal(data);
-            const precioCanal = valorConFallback(data, campoPrecio, 'nuevoPrecio');
-            const precioActualTexto = formatearMoneda(precioCanal);
-
-            // El alza/baja se calcula del precio real del canal elegido vs el Precio
-            // Inicial, no del texto de OBSERVACION (que es un solo valor por producto,
-            // no varía según el canal que el usuario está mirando).
-            const comparacion = compararPrecioCanal(precioBase, precioCanal);
-            const numDesc = comparacion.tipo === 'baja' ? comparacion.pct : 0;
-
-            const pContainer = document.getElementById('priceContainerDynamic');
-            pContainer.innerHTML = '';
-
-            const labelCanal = `<div style="text-align:center; font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:600; letter-spacing:0.5px; margin-bottom:6px;">Precio ${LABEL_TIENDA[tiendaActual] || ''}</div>`;
-
-            if (comparacion.tipo === 'alza') {
-                const precioAntesTexto = formatearMoneda(data.precioAntes);
-                pContainer.innerHTML = `
-                    ${labelCanal}
-                    <div class="price-container">
-                        <div class="price-alza-box">
-                            <div class="price-alza-item">
-                                <span class="price-label">${labelPrecioBase()}</span>
-                                <span style="color: var(--text-muted); text-decoration: line-through;">${formatearMoneda(precioBase)}</span>
-                            </div>
-                            <div class="price-alza-item">
-                                <span class="price-label">Precio Antes</span>
-                                <span style="font-weight: 600; color: var(--text-main);">${precioAntesTexto}</span>
-                            </div>
-                        </div>
-                        <div class="price-label" style="color: var(--accent-red); font-weight: bold;">⚠️ Novedad: Alza de Precio +${comparacion.pct}%</div>
-                        <div class="price-actual alert-red">${precioActualTexto}</div>
-                    </div>
-                `;
-            } else if (comparacion.tipo === 'baja') {
-                const precioAntesTexto = formatearMoneda(data.precioAntes);
-                pContainer.innerHTML = `
-                    ${labelCanal}
-                    <div class="price-container">
-                        <div style="text-align: center;"><div class="discount-badge">BAJA DE PRECIO -${numDesc}%</div></div>
-                        <div class="price-alza-box">
-                            <div class="price-alza-item">
-                                <span class="price-label">${labelPrecioBase()}</span>
-                                <span style="color: var(--text-muted); text-decoration: line-through;">${formatearMoneda(precioBase)}</span>
-                            </div>
-                            <div class="price-alza-item">
-                                <span class="price-label">Precio Antes</span>
-                                <span style="color: var(--text-muted); text-decoration: line-through;">${precioAntesTexto}</span>
-                            </div>
-                        </div>
-                        <div class="price-label" style="margin-top: 10px;">Precio Actual</div>
-                        <div class="price-actual">${precioActualTexto}</div>
-                    </div>
-                `;
-            } else {
-                pContainer.innerHTML = `
-                    ${labelCanal}
-                    <div class="price-container">
-                        <div class="price-alza-box">
-                            <div class="price-alza-item">
-                                <span class="price-label">${labelPrecioBase()}</span>
-                                <span style="color: var(--text-muted);">${formatearMoneda(precioBase)}</span>
-                            </div>
-                            <div class="price-alza-item">
-                                <span class="price-label">Precio Antes</span>
-                                <span style="color: var(--text-muted);">${formatearMoneda(data.precioAntes)}</span>
-                            </div>
-                        </div>
-                        <div class="price-label">Precio Actual</div>
-                        <div class="price-actual" style="color: var(--primary);">${precioActualTexto}</div>
-                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">Sin variaciones recientes</div>
-                    </div>
-                `;
-            }
-
-            const fechaTxt = formatearFecha(data.fechaActualizacion);
-            if (fechaTxt) {
-                pContainer.innerHTML += `<div style="font-size: 11px; color: var(--text-light); text-align: center; margin-top: 8px;">Precio actualizado el ${fechaTxt}</div>`;
-            }
-
-            const nivelObs = obtenerNivelObsolescencia(data.obsolescencia);
-            const obsContainer = document.getElementById('obsolescenciaContainer');
-            obsContainer.innerHTML = renderObsolescenciaAlert(nivelObs);
-            const infoBoxEl = document.getElementById('infoBoxProducto');
-            infoBoxEl.classList.remove('obsolescencia-50', 'obsolescencia-100');
-            if (nivelObs) infoBoxEl.classList.add('obsolescencia-' + nivelObs);
-
-            const imgContainer = document.getElementById('imgContenedor');
-            imgContainer.innerHTML = '';
-            const urlFotoLower = `./fotos/${codigo}.jpg`;
-            const urlFotoUpper = `./fotos/${codigo}.JPG`;
-            const urlBusquedaBata = `https://www.bata.com/cl/search?q=${codigo}`;
-
-            const imgElement = document.createElement('img');
-            imgElement.style.width = '100%';
-            imgElement.style.height = '100%';
-            imgElement.style.objectFit = 'contain';
-
-            let attempt = 0;
-            imgElement.onerror = function() {
-                attempt++;
-                if (attempt === 1) imgElement.src = urlFotoUpper;
-                else {
-                    imgContainer.style.background = '#F9FAFB';
-                    imgContainer.style.border = '1px dashed #D1D5DB';
-                    imgContainer.innerHTML = `<a href="${urlBusquedaBata}" target="_blank" style="color:var(--text-muted); text-decoration:none; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; padding: 10px;"><span style="font-size:24px;">📸</span><span style="font-size:12px; font-weight:600; margin-top:5px;">Foto no encontrada</span><span style="color:var(--primary); font-size:11px; text-decoration:underline; margin-top:3px; text-align:center;">Ver en web oficial</span></a>`;
-                }
-            };
-            imgElement.src = urlFotoLower;
-            imgContainer.appendChild(imgElement);
-
-            cambiarVista('view-2');
-        } else {
-            mostrarToast("El código " + codigo + " no se encuentra.", 'error');
+        if (!data.encontrado) {
+            return mostrarToast("El código " + codigo + " no se encuentra.", 'error');
         }
+
+        guardarReciente(codigo);
+        actualizarFechaStock(data.semanaStock, data.stockActualizado);
+
+        document.getElementById('tituloProducto').innerHTML = formatearCodigoConGuion(data.codigo || codigo) + renderStockTienda(data.stock);
+
+        document.getElementById('outMarca').innerText = data.marca || '--';
+        document.getElementById('outGenero').innerText = data.genero || '--';
+        document.getElementById('outTipoProd').innerText = data.tipoProducto || '--';
+        document.getElementById('outProyecto').innerText = tieneValor(data.proyecto) ? data.proyecto : '--';
+
+        document.getElementById('priceContainerDynamic').innerHTML = renderPreciosDetalle(data);
+
+        const nivelObs = obtenerNivelObsolescencia(data.obsolescencia);
+        document.getElementById('obsolescenciaContainer').innerHTML = renderObsolescenciaAlert(nivelObs);
+        const infoBoxEl = document.getElementById('infoBoxProducto');
+        infoBoxEl.classList.remove('obsolescencia-50', 'obsolescencia-100');
+        if (nivelObs) infoBoxEl.classList.add('obsolescencia-' + nivelObs);
+
+        renderFotoDetalle(codigo);
+        cambiarVista('view-2');
     } catch (error) {
-        document.getElementById('loading').style.display = "none";
-        if (error.name === 'AbortError') {
-            mostrarToast("La consulta demoró demasiado. Intente nuevamente.", 'error');
-        } else {
-            mostrarToast("Error de conexión.", 'error');
-        }
+        if (!esConsultaVigente(id)) return;
+        mostrarErrorConsulta(error, "Error de conexión.");
     }
 }
 
@@ -520,7 +572,7 @@ function prepararFiltrosParaListado(modo) {
 }
 
 async function cargarLista(categoria, tituloHumanizado) {
-    document.getElementById('loading').style.display = "block";
+    const id = iniciarConsulta();
     document.getElementById('tituloLista').innerText = tituloHumanizado;
     document.getElementById('listaContenedor').innerHTML = '';
     prepararFiltrosParaListado(categoria === 'OBSOLESCENCIA' ? 'obsolescencia' : 'normal');
@@ -530,7 +582,8 @@ async function cargarLista(categoria, tituloHumanizado) {
 
     try {
         const data = await fetchConTimeout(`${urlAPI}?action=listarCategoria&categoria=${categoria}&tienda=${tiendaActual}${paramTiendaStock()}`);
-        document.getElementById('loading').style.display = "none";
+        if (!esConsultaVigente(id)) return;
+        actualizarFechaStock(data.semanaStock, data.stockActualizado);
 
         if (data.encontrado && data.items && data.items.length > 0) {
             itemsGlobales = data.items;
@@ -546,12 +599,8 @@ async function cargarLista(categoria, tituloHumanizado) {
             mostrarToast(paramTiendaStock() ? "No se encontraron artículos con stock en su tienda." : "No se encontraron artículos.", 'error');
         }
     } catch(e) {
-        document.getElementById('loading').style.display = "none";
-        if (e.name === 'AbortError') {
-            mostrarToast("La consulta demoró demasiado. Intente nuevamente.", 'error');
-        } else {
-            mostrarToast("Error al cargar la lista.", 'error');
-        }
+        if (!esConsultaVigente(id)) return;
+        mostrarErrorConsulta(e, "Error al cargar la lista.");
     }
 }
 
@@ -577,7 +626,7 @@ function poblarFiltros(items) {
 
 // Bucket de precio para el filtro "Rango de Precio" (usa el precio del canal activo)
 function obtenerRangoPrecio(valor) {
-    const n = parseInt((valor || '').toString().replace(/\D/g, ''), 10);
+    const n = aNumero(valor);
     if (isNaN(n)) return null;
     if (n < 10000) return 'p1';
     if (n < 20000) return 'p2';
@@ -604,46 +653,29 @@ function aplicarFiltros() {
     const vObsolescencia = document.getElementById('filterObsolescencia').value;
     const vPuntaPrecio = document.getElementById('filterPuntaPrecio').value;
 
-    const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
-
     const filtrados = itemsGlobales.filter(item => {
         const pasaMarca = vMarca === "ALL" || item.marca === vMarca;
         const pasaGenero = vGenero === "ALL" || item.genero === vGenero;
         const pasaTipo = vTipo === "ALL" || item.tipoProducto === vTipo;
         const pasaObsolescencia = vObsolescencia === "ALL" || obtenerNivelObsolescencia(item.obsolescencia) === vObsolescencia;
-
-        let pasaPrecio = true;
-        if (vPrecio !== 'ALL') {
-            const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
-            pasaPrecio = obtenerRangoPrecio(precioCanal) === vPrecio;
-        }
+        const pasaPrecio = vPrecio === 'ALL' || obtenerRangoPrecio(precioCanal(item)) === vPrecio;
 
         let pasaDescuento = true;
         if (vDescuento !== 'ALL') {
-            const precioBase = precioBaseCanal(item);
-            const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
-            const comparacion = compararPrecioCanal(precioBase, precioCanal);
+            const comparacion = compararPrecioCanal(item);
             const pct = comparacion.tipo === 'baja' ? comparacion.pct : 0;
             pasaDescuento = obtenerRangoDescuento(pct) === vDescuento;
         }
 
         // Punta de precio: coincidencia EXACTA con el precio del canal (ej. $990, $5.000),
         // a diferencia de Rango de Precio que agrupa por tramos.
-        let pasaPuntaPrecio = true;
-        if (vPuntaPrecio !== 'ALL') {
-            const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
-            const n = parseInt((precioCanal || '').toString().replace(/\D/g, ''), 10);
-            pasaPuntaPrecio = n === parseInt(vPuntaPrecio, 10);
-        }
+        const pasaPuntaPrecio = vPuntaPrecio === 'ALL' || aNumero(precioCanal(item)) === parseInt(vPuntaPrecio, 10);
 
         return pasaMarca && pasaGenero && pasaTipo && pasaObsolescencia && pasaPuntaPrecio && pasaPrecio && pasaDescuento;
     });
 
     if (ordenPrecio) {
-        const leerPrecio = (item) => {
-            const v = valorConFallback(item, campoPrecio, 'nuevoPrecio');
-            return parseInt((v || '').toString().replace(/\D/g, ''), 10) || 0;
-        };
+        const leerPrecio = (item) => aNumero(precioCanal(item)) || 0;
         filtrados.sort((a, b) => ordenPrecio === 'asc' ? leerPrecio(a) - leerPrecio(b) : leerPrecio(b) - leerPrecio(a));
     }
 
@@ -773,20 +805,17 @@ function renderizarItems(items) {
         return;
     }
 
-    const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
-
     items.forEach(item => {
         const codigo = item.codigo ? item.codigo.toString().padStart(7, '0') : '';
         const urlFoto = `./fotos/${codigo}.jpg`;
         const urlFotoUpper = `./fotos/${codigo}.JPG`;
 
-        const precioBase = precioBaseCanal(item);
-        const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
-        const numDesc = calcularDescuentoCanal(precioBase, precioCanal);
-
+        // El badge sale de la misma comparación que el detalle (canal vs FPR,
+        // o vs estándar en Evento), no de la categoría del listado.
+        const comparacion = compararPrecioCanal(item);
         let badgeHtml = '';
-        if ((categoriaActual === 'BAJA' || categoriaActual === 'OBSOLESCENCIA') && numDesc > 0) badgeHtml = `<div class="item-discount">-${numDesc}%</div>`;
-        if (categoriaActual === 'SUBE') badgeHtml = `<div style="font-size: 11px; color: var(--accent-red); font-weight: 600;">⚠️ Alza</div>`;
+        if (comparacion.tipo === 'baja') badgeHtml = `<div class="item-discount">-${comparacion.pct}%</div>`;
+        if (comparacion.tipo === 'alza') badgeHtml = `<div style="font-size: 11px; color: var(--accent-red); font-weight: 600;">⚠️ Alza +${comparacion.pct}%</div>`;
 
         const nivelObs = obtenerNivelObsolescencia(item.obsolescencia);
         const claseObs = nivelObs ? ` obsolescencia-${nivelObs}` : '';
@@ -799,7 +828,7 @@ function renderizarItems(items) {
         card.onclick = () => procesarCodigo(codigo);
 
         card.innerHTML = `
-            <img src="${urlFoto}" onerror="this.onerror=null; this.src='${urlFotoUpper}';">
+            <img src="${urlFoto}" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='${urlFotoUpper}';">
             <div class="item-details">
                 <div class="item-header-row">
                     <div class="item-code">${formatearCodigoConGuion(codigo)}${renderStockTienda(item.stock)}${badgeObs}</div>
@@ -809,14 +838,15 @@ function renderizarItems(items) {
                 <div class="item-prices">
                     <div class="item-price-old">
                         <span>${labelPrecioBase()}</span>
-                        ${formatearMoneda(precioBase)}
+                        ${formatearMoneda(precioBaseCanal(item))}
                     </div>
+                    ${tieneValor(item.precioAntes) ? `
                     <div class="item-price-old">
                         <span>Precio Antes</span>
                         ${formatearMoneda(item.precioAntes)}
-                    </div>
+                    </div>` : ''}
                     <div class="item-price-new">
-                        ${formatearMoneda(precioCanal)}
+                        ${formatearMoneda(precioCanal(item))}
                     </div>
                 </div>
             </div>
@@ -882,14 +912,11 @@ async function exportarListadoPDF() {
     mostrarToast('Generando PDF, esto puede tardar unos segundos...', 'info');
 
     try {
-        const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
         const codigos = itemsFiltrados.map(item => item.codigo ? item.codigo.toString().padStart(7, '0') : '');
         const imagenes = await Promise.all(codigos.map(cod => cargarImagenProducto(cod)));
 
         const filas = itemsFiltrados.map((item, i) => {
-            const precioBase = precioBaseCanal(item);
-            const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
-            const comparacion = compararPrecioCanal(precioBase, precioCanal);
+            const comparacion = compararPrecioCanal(item);
             const pctTexto = comparacion.tipo === 'alza' ? `+${comparacion.pct}%` : comparacion.tipo === 'baja' ? `-${comparacion.pct}%` : '--';
             return {
                 foto: imagenes[i],
@@ -899,10 +926,10 @@ async function exportarListadoPDF() {
                     item.marca || '--',
                     item.genero || '--',
                     item.tipoProducto || '--',
-                    formatearMoneda(precioBase),
+                    formatearMoneda(precioBaseCanal(item)),
                     formatearMoneda(item.precioAntes),
                     pctTexto,
-                    formatearMoneda(precioCanal)
+                    formatearMoneda(precioCanal(item))
                 ]
             };
         });

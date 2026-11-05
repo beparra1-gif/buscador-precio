@@ -15,15 +15,24 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&display=swap" rel="stylesheet">
 
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-    <script src="https://unpkg.com/jspdf-autotable@5.0.8/dist/jspdf.plugin.autotable.min.js"></script>
+    <!-- Versiones fijas (una versión nueva no puede romper el escáner sin aviso),
+         defer para no bloquear la carga, y crossorigin para que sw.js pueda
+         guardarlas en caché y funcionen sin conexión. -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" crossorigin="anonymous" defer></script>
+    <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js" crossorigin="anonymous" defer></script>
+    <script src="https://unpkg.com/jspdf-autotable@5.0.8/dist/jspdf.plugin.autotable.min.js" crossorigin="anonymous" defer></script>
 
     <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 
 <div class="card">
+
+    <!-- Aviso para tiendas evento (se muestra desde app.js, actualizarAvisoEvento) -->
+    <div id="avisoEvento" class="aviso-evento" style="display:none;">
+        <div class="aviso-evento-titulo">⚠ EVENTO OUTLET</div>
+        <div class="aviso-evento-texto">Esta tienda usa precios de Evento Outlet</div>
+    </div>
 
     <!-- PANTALLA 0: INGRESO DE TIENDA POR EDP (define nombre, cadena, canal de precios y stock) -->
     <div id="view-0" class="view active">
@@ -48,6 +57,7 @@
             <span id="tiendaActualLabel">--</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
         </div>
+        <p class="fecha-stock" style="display:none;"></p>
 
         <div class="input-group">
             <svg class="icon-left" onclick="abrirScanner()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -95,7 +105,8 @@
     <div id="view-2" class="view">
         <!-- TÍTULO DINÁMICO CON EL CÓDIGO -->
         <h2 id="tituloProducto" class="title-codigo">---</h2>
-        
+        <p class="fecha-stock" style="display:none;"></p>
+
         <div class="product-img" id="imgContenedor">📸 Foto</div>
 
         <div id="obsolescenciaContainer"></div>
@@ -127,6 +138,8 @@
                 </button>
             </div>
         </div>
+
+        <p class="fecha-stock" style="display:none;"></p>
 
         <div class="filtros-activos" id="filtrosActivos" style="display:none;"></div>
 

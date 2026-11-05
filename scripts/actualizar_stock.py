@@ -15,11 +15,12 @@ Configuración en stock_config.json (al lado de este script, NO se versiona):
       "url_api": "https://script.google.com/macros/s/.../exec",
       "token": "el mismo valor que STOCK_TOKEN en las propiedades del Apps Script",
       "carpeta_stock": "C:/Users/.../Obsolescencia-stock/Obs",
-      "tiendas_xlsx": "C:/Users/.../BASES/BASE.xlsx",  (maestro: EDP, GLOSA TIENDA, cadena townhall)
+      "tiendas_xlsx": "C:/Users/.../BASES/BASE.xlsx",
       "tiendas_hoja": "DM+BASE DATOS TIENDA"
+    }
+    (tiendas_xlsx es el maestro de tiendas: EDP, GLOSA TIENDA, cadena townhall)
 
 Requiere: pip install openpyxl
-    }
 """
 import glob
 import json
