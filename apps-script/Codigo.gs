@@ -102,7 +102,8 @@ function obtenerEncabezados(sheet) {
 // hoja del que hace falta (evita traer W4/W3/W2/W1 y otras columnas sin uso).
 var CAMPOS_REQUERIDOS = [
   'Cod 7 texto', 'Cod Art Numero', 'Marca', 'GENERO', 'TIPO PRODUCTO', 'Proyecto',
-  'Full Price Retail', 'Precio Antes', 'Nuevo Precio Final', 'Precios Outlet', 'Precio 30 tiendas',
+  'Full Price Retail', 'Precio Antes', 'Nuevo Precio Final', 'Precios Tiendas', 'Precios Outlet',
+  'Precio eventos outlet', 'Precio 30 tiendas',
   'Obsolescencia final', 'OBSERVACION STANDAR', 'OBSERVACION OUTLET'
 ];
 
@@ -158,6 +159,8 @@ function armarProducto(row, col, colOpcional) {
     precioAntes: leer('Precio Antes'),
     precioTienda: leerConRespaldo('Nuevo Precio Final', 'Precios Tiendas'),
     precioOutlet: leer('Precios Outlet'),
+    // Columna AA: precio de las tiendas evento outlet (lista en scripts/tiendas_evento.txt)
+    precioEvento: leer('Precio eventos outlet'),
     precioPiloto: leer('Precio 30 tiendas'),
     obsolescencia: leerTexto('Obsolescencia final').trim()
   };
@@ -206,8 +209,31 @@ var SINONIMOS_CATEGORIA = {
 // Cada canal tiene su propia columna de observación (antes había una sola
 // columna genérica; ahora Estándar y Outlet se evalúan por separado, así
 // que "sube/baja/mantiene" puede diferir entre canales para el mismo producto).
+// Las tiendas evento outlet no tienen columna: su observación se calcula con
+// observacionEvento (precio evento vs precio estándar).
 function columnaObservacionPorTienda(tienda) {
   return tienda === 'outlet' ? 'OBSERVACION OUTLET' : 'OBSERVACION STANDAR';
+}
+
+// Precio de la hoja a número: acepta 12990, "12990" o "$12.990".
+function aNumeroPrecio(v) {
+  if (v === null || v === undefined || v === '') return NaN;
+  if (typeof v === 'number') return v;
+  var limpio = v.toString().replace(/\D/g, '');
+  return limpio === '' ? NaN : parseInt(limpio, 10);
+}
+
+// Observación de tienda evento: compara "Precio eventos outlet" contra el
+// precio estándar (Nuevo Precio Final, o Precios Tiendas si viene vacío).
+// Más alto = SUBE, más bajo = BAJA, igual = MANTIENE. Sin alguno de los dos
+// precios no hay observación (el producto no entra en esos listados).
+function observacionEvento(producto) {
+  var estandar = aNumeroPrecio(producto.precioTienda);
+  var evento = aNumeroPrecio(producto.precioEvento);
+  if (isNaN(estandar) || isNaN(evento) || !estandar || !evento) return '';
+  if (evento > estandar) return 'SUBE';
+  if (evento < estandar) return 'BAJA';
+  return 'MANTIENE';
 }
 
 function listarCategoria(categoria, tienda, tiendaStock) {
@@ -250,6 +276,15 @@ function listarCategoria(categoria, tienda, tiendaStock) {
     return respuesta();
   }
 
+  if (tienda === 'evento') {
+    for (var k = 1; k < data.length; k++) {
+      if (observacionEvento(armarProducto(data[k], col, colOpcional)) === categoria) {
+        agregar(data[k]);
+      }
+    }
+    return respuesta();
+  }
+
   var idxEstatus = col(columnaObservacionPorTienda(tienda));
   var candidatos = (SINONIMOS_CATEGORIA[categoria] || [categoria]).map(normalizarTexto);
 
@@ -273,7 +308,8 @@ function listarCategoria(categoria, tienda, tiendaStock) {
 //                  admite más de 50.000 caracteres)
 //   STOCK META:    Tienda | Nombre | Tipo | Cadena | Articulos | Semana | Actualizado
 //                  (Nombre = GLOSA TIENDA y Cadena = cadena townhall de BASE.xlsx;
-//                  Tipo = outlet para cadena OUTLET, estandar para el resto)
+//                  Tipo = evento para las EDP de scripts/tiendas_evento.txt,
+//                  outlet para cadena OUTLET, estandar para el resto)
 var HOJA_STOCK = 'STOCK TIENDAS';
 var HOJA_STOCK_META = 'STOCK META';
 
@@ -341,7 +377,7 @@ function listarTiendasStock() {
     return {
       tienda: f[0].toString(),
       nombre: f[1].toString(),
-      tipo: f[2].toString() === 'outlet' ? 'outlet' : 'estandar',
+      tipo: ['outlet', 'evento'].indexOf(f[2].toString()) !== -1 ? f[2].toString() : 'estandar',
       cadena: f[3].toString(),
       articulos: Number(f[4]) || 0
     };

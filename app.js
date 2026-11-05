@@ -18,9 +18,10 @@ const RANGO_PRECIO_LABEL = { p1: 'Menos de $10.000', p2: '$10.000 - $20.000', p3
 const RANGO_DESCUENTO_LABEL = { d0: 'Sin descuento', d1: '1% - 10%', d2: '11% - 25%', d3: '26% - 50%', d4: 'Más de 50%' };
 
 // Canal de tienda: define qué columna de precio del Sheet se usa en toda la app.
-// Se deduce de la cadena de la tienda (OUTLET -> outlet, el resto -> estandar).
-const CAMPO_PRECIO_CANAL = { estandar: 'precioTienda', outlet: 'precioOutlet' };
-const LABEL_TIENDA = { estandar: 'Tienda Estándar', outlet: 'Outlet' };
+// Viene con la tienda: evento (EDP en scripts/tiendas_evento.txt, columna
+// "Precio eventos outlet"), outlet (cadena OUTLET) o estandar (el resto).
+const CAMPO_PRECIO_CANAL = { estandar: 'precioTienda', outlet: 'precioOutlet', evento: 'precioEvento' };
+const LABEL_TIENDA = { estandar: 'Tienda Estándar', outlet: 'Outlet', evento: 'Evento Outlet' };
 let tiendaActual = localStorage.getItem('tiendaSeleccionada') || null;
 // Tienda física (EDP = tienda_key del archivo de stock). El usuario digita su
 // EDP y de ahí sale todo: nombre (GLOSA TIENDA), cadena (cadena townhall) y el
@@ -54,10 +55,36 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tiendaConfiguradaValida()) {
         actualizarChipTienda();
         cambiarVista('view-1');
+        refrescarTiendaGuardada();
     } else {
         abrirSelectorTienda();
     }
 });
+
+// La tienda guardada en el celular puede quedar desactualizada (ej. pasó a ser
+// tienda evento, o cambió su nombre/cadena en BASE.xlsx): se vuelve a leer en
+// segundo plano al abrir la app y, si cambió, se actualiza sin pedir la EDP.
+async function refrescarTiendaGuardada() {
+    try {
+        const data = await fetchConTimeout(`${urlAPI}?action=listarTiendasStock`);
+        if (!data.encontrado || !data.tiendas) return;
+        tiendasStockCache = data.tiendas;
+        const t = buscarTiendaPorEdp(tiendaStockActual);
+        if (t && (t.tipo !== tiendaActual || t.nombre !== infoTiendaStock.nombre || t.cadena !== infoTiendaStock.cadena)) {
+            guardarTienda(t);
+        }
+    } catch (e) { /* sin conexión: se sigue con lo guardado */ }
+}
+
+function guardarTienda(t) {
+    tiendaStockActual = t.tienda;
+    infoTiendaStock = { nombre: t.nombre, cadena: t.cadena, tipo: t.tipo };
+    tiendaActual = t.tipo;
+    localStorage.setItem('tiendaStockSeleccionada', tiendaStockActual);
+    localStorage.setItem('tiendaStockInfo', JSON.stringify(infoTiendaStock));
+    localStorage.setItem('tiendaSeleccionada', tiendaActual);
+    actualizarChipTienda();
+}
 
 // Pantalla inicial: el usuario digita su EDP. La lista de tiendas se trae una
 // vez (para validar la EDP y mostrar nombre/cadena mientras escribe).
@@ -104,7 +131,7 @@ function previsualizarTienda() {
     prev.className = 'preview-tienda';
     prev.innerHTML = `
         <div class="preview-nombre">${t.nombre || 'Tienda ' + t.tienda}</div>
-        <div class="preview-meta">${t.cadena || '--'} · Precios ${LABEL_TIENDA[t.tipo]} · ${t.articulos} artículos con stock</div>`;
+        <div class="preview-meta">${t.cadena || '--'} · Precios ${LABEL_TIENDA[t.tipo] || ''} · ${t.articulos} artículos con stock</div>`;
 }
 
 function confirmarTiendaStock() {
@@ -114,13 +141,7 @@ function confirmarTiendaStock() {
     const t = buscarTiendaPorEdp(edp);
     if (!t) return mostrarToast(`El EDP ${edp} no existe o no tiene stock cargado.`, 'error');
 
-    tiendaStockActual = t.tienda;
-    infoTiendaStock = { nombre: t.nombre, cadena: t.cadena, tipo: t.tipo };
-    tiendaActual = t.tipo;
-    localStorage.setItem('tiendaStockSeleccionada', tiendaStockActual);
-    localStorage.setItem('tiendaStockInfo', JSON.stringify(infoTiendaStock));
-    localStorage.setItem('tiendaSeleccionada', tiendaActual);
-    actualizarChipTienda();
+    guardarTienda(t);
     cambiarVista('view-1');
 }
 
@@ -140,7 +161,18 @@ function valorConFallback(obj, campoPrimario, campoAlterno) {
     return (v !== undefined && v !== null && v !== '') ? v : obj[campoAlterno];
 }
 
-// % de descuento del canal seleccionado respecto al Full Price Retail (precio base)
+// Precio de referencia contra el que se mide el canal: Full Price Retail, salvo
+// en tiendas evento, que se comparan contra el precio estándar (mismo criterio
+// que usa el backend para sus listados Alzas/Bajas/Sin Cambios).
+function precioBaseCanal(item) {
+    if (tiendaActual === 'evento') return valorConFallback(item, 'precioTienda', 'nuevoPrecio');
+    return valorConFallback(item, 'fullPriceRetail', 'precioInicial');
+}
+function labelPrecioBase() {
+    return tiendaActual === 'evento' ? 'Precio Estándar' : 'Precio Inicial';
+}
+
+// % de descuento del canal seleccionado respecto al precio base (precioBaseCanal)
 function calcularDescuentoCanal(precioBase, precioCanal) {
     const base = parseInt((precioBase || '').toString().replace(/\D/g, ''), 10);
     const canal = parseInt((precioCanal || '').toString().replace(/\D/g, ''), 10);
@@ -345,7 +377,7 @@ async function procesarCodigo(codDirecto = null) {
             document.getElementById('outProyecto').innerText = (data.proyecto && data.proyecto.toString().trim() !== "") ? data.proyecto : '--';
 
             const campoPrecio = CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda';
-            const precioBase = valorConFallback(data, 'fullPriceRetail', 'precioInicial');
+            const precioBase = precioBaseCanal(data);
             const precioCanal = valorConFallback(data, campoPrecio, 'nuevoPrecio');
             const precioActualTexto = formatearMoneda(precioCanal);
 
@@ -367,7 +399,7 @@ async function procesarCodigo(codDirecto = null) {
                     <div class="price-container">
                         <div class="price-alza-box">
                             <div class="price-alza-item">
-                                <span class="price-label">Precio Inicial</span>
+                                <span class="price-label">${labelPrecioBase()}</span>
                                 <span style="color: var(--text-muted); text-decoration: line-through;">${formatearMoneda(precioBase)}</span>
                             </div>
                             <div class="price-alza-item">
@@ -387,7 +419,7 @@ async function procesarCodigo(codDirecto = null) {
                         <div style="text-align: center;"><div class="discount-badge">BAJA DE PRECIO -${numDesc}%</div></div>
                         <div class="price-alza-box">
                             <div class="price-alza-item">
-                                <span class="price-label">Precio Inicial</span>
+                                <span class="price-label">${labelPrecioBase()}</span>
                                 <span style="color: var(--text-muted); text-decoration: line-through;">${formatearMoneda(precioBase)}</span>
                             </div>
                             <div class="price-alza-item">
@@ -405,7 +437,7 @@ async function procesarCodigo(codDirecto = null) {
                     <div class="price-container">
                         <div class="price-alza-box">
                             <div class="price-alza-item">
-                                <span class="price-label">Precio Inicial</span>
+                                <span class="price-label">${labelPrecioBase()}</span>
                                 <span style="color: var(--text-muted);">${formatearMoneda(precioBase)}</span>
                             </div>
                             <div class="price-alza-item">
@@ -471,7 +503,7 @@ async function procesarCodigo(codDirecto = null) {
 }
 
 // Resetea los selects de filtro y muestra/oculta los grupos que corresponden:
-// Obsolescencia solo en ese apartado, Punta de Precio solo en tiendas Outlet
+// Obsolescencia solo en ese apartado, Punta de Precio solo en tiendas Outlet y Evento Outlet
 // (donde se trabaja con precios redondos tipo $990 / $5.000 / $10.000).
 function prepararFiltrosParaListado(modo) {
     document.getElementById('filterPrecio').value = 'ALL';
@@ -480,7 +512,7 @@ function prepararFiltrosParaListado(modo) {
     document.getElementById('filterPuntaPrecio').value = 'ALL';
 
     document.getElementById('grupoFiltroObsolescencia').style.display = (modo === 'obsolescencia') ? 'block' : 'none';
-    document.getElementById('grupoFiltroPuntaPrecio').style.display = (tiendaActual === 'outlet') ? 'block' : 'none';
+    document.getElementById('grupoFiltroPuntaPrecio').style.display = (tiendaActual === 'outlet' || tiendaActual === 'evento') ? 'block' : 'none';
 
     ordenPrecio = null;
     document.getElementById('btnOrdenAsc').classList.remove('active');
@@ -588,7 +620,7 @@ function aplicarFiltros() {
 
         let pasaDescuento = true;
         if (vDescuento !== 'ALL') {
-            const precioBase = valorConFallback(item, 'fullPriceRetail', 'precioInicial');
+            const precioBase = precioBaseCanal(item);
             const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
             const comparacion = compararPrecioCanal(precioBase, precioCanal);
             const pct = comparacion.tipo === 'baja' ? comparacion.pct : 0;
@@ -748,7 +780,7 @@ function renderizarItems(items) {
         const urlFoto = `./fotos/${codigo}.jpg`;
         const urlFotoUpper = `./fotos/${codigo}.JPG`;
 
-        const precioBase = valorConFallback(item, 'fullPriceRetail', 'precioInicial');
+        const precioBase = precioBaseCanal(item);
         const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
         const numDesc = calcularDescuentoCanal(precioBase, precioCanal);
 
@@ -776,7 +808,7 @@ function renderizarItems(items) {
                 <div class="item-meta">${metaTexto}</div>
                 <div class="item-prices">
                     <div class="item-price-old">
-                        <span>Precio Inicial</span>
+                        <span>${labelPrecioBase()}</span>
                         ${formatearMoneda(precioBase)}
                     </div>
                     <div class="item-price-old">
@@ -855,7 +887,7 @@ async function exportarListadoPDF() {
         const imagenes = await Promise.all(codigos.map(cod => cargarImagenProducto(cod)));
 
         const filas = itemsFiltrados.map((item, i) => {
-            const precioBase = valorConFallback(item, 'fullPriceRetail', 'precioInicial');
+            const precioBase = precioBaseCanal(item);
             const precioCanal = valorConFallback(item, campoPrecio, 'nuevoPrecio');
             const comparacion = compararPrecioCanal(precioBase, precioCanal);
             const pctTexto = comparacion.tipo === 'alza' ? `+${comparacion.pct}%` : comparacion.tipo === 'baja' ? `-${comparacion.pct}%` : '--';
@@ -883,7 +915,7 @@ async function exportarListadoPDF() {
         doc.text(`${tituloLista} — ${LABEL_TIENDA[tiendaActual] || ''}${infoTiendaStock ? ' · ' + (infoTiendaStock.nombre || tiendaStockActual) : ''}`, 40, 30);
 
         doc.autoTable({
-            head: [['Foto', 'Código', 'Marca', 'Género', 'Tipo Producto', 'Precio Inicial', 'Precio Antes', '% Variación', 'Precio Final']],
+            head: [['Foto', 'Código', 'Marca', 'Género', 'Tipo Producto', labelPrecioBase(), 'Precio Antes', '% Variación', 'Precio Final']],
             body: filas.map(f => f.fila),
             startY: 45,
             styles: { fontSize: 8, cellPadding: 4, valign: 'middle', minCellHeight: 36 },

@@ -56,7 +56,7 @@ En Apps Script, donde arman el objeto de respuesta (algo como `{ codigo: row[0],
 
 ### Selector de tipo de tienda
 
-Al abrir la app por primera vez se pide el EDP de la tienda (el canal Estándar/Outlet se deduce de su cadena). La elección se guarda en `localStorage` (`tiendaSeleccionada`) y se reutiliza en visitas futuras; se puede cambiar en cualquier momento tocando el chip que aparece arriba del buscador. Todos los precios mostrados (detalle y listados) corresponden al canal activo. Si un usuario tiene guardado un canal que ya no existe (ej. `piloto`, de una versión anterior), la app lo ignora y vuelve a mostrar el selector.
+Al abrir la app por primera vez se pide el EDP de la tienda (el canal Estándar / Outlet / Evento Outlet viene con la tienda; al abrir la app se vuelve a consultar en segundo plano, así un cambio de canal o de nombre llega sin pedir la EDP otra vez). La elección se guarda en `localStorage` (`tiendaSeleccionada`) y se reutiliza en visitas futuras; se puede cambiar en cualquier momento tocando el chip que aparece arriba del buscador. Todos los precios mostrados (detalle y listados) corresponden al canal activo. Si un usuario tiene guardado un canal que ya no existe (ej. `piloto`, de una versión anterior), la app lo ignora y vuelve a mostrar el selector.
 
 ### Tienda por EDP y stock por tienda
 
@@ -66,7 +66,7 @@ Al entrar, el usuario **digita el EDP de su tienda** (`view-0`) y la app arma to
 - El canal de precios es automático: cadena `OUTLET` (o "OUTLET" en el nombre) → precios Outlet; todas las demás → precio Estándar.
 - Alzas / Bajas / Sin Cambios / Obsolescencia muestran **solo los artículos con stock > 0 en esa tienda**, con una pastilla "Stock: N". El detalle de un código muestra el apartado "Stock en <tienda>" (o "Sin stock en esta tienda").
 - El cruce es `articulo` del archivo de stock contra la columna **Cod Art Numero** de BASE PRECIOS.
-- No hay lógica especial para tiendas de evento: cada tienda usa el canal de su cadena townhall (solo `OUTLET` → precios Outlet). Ya no existe un canal Evento aparte ni la hoja "Evento Outlet".
+- **Tiendas evento outlet**: las EDP listadas en [`scripts/tiendas_evento.txt`](scripts/tiendas_evento.txt) (una por línea) usan la columna **"Precio eventos outlet"** (AA de BASE PRECIOS) sin importar su cadena, y su observación se calcula comparando el precio evento contra el precio estándar (Nuevo Precio Final, o Precios Tiendas si viene vacío): mayor = Alza, menor = Baja, igual = Sin Cambios. En el detalle y los listados el % y la referencia ("Precio Estándar") también son contra el precio estándar. Para agregar o quitar una tienda basta editar ese archivo; la próxima carga diaria lo aplica. El resto de las tiendas usa el canal de su cadena townhall.
 - En los listados el código se muestra siempre con guion tras el 3er dígito (ej. 589-8773), con la pastilla de stock justo al lado; el filtro "Punta de Precio" aparece solo en tiendas Outlet.
 
 El stock sale de `Obsolescencia_Unido_<año>.txt` (SharePoint, ~1,7 GB, se regenera todos los días a las 8:00). Apps Script no puede leerlo, así que [`scripts/actualizar_stock.py`](scripts/actualizar_stock.py) lo procesa en el PC:

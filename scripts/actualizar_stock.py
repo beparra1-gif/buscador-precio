@@ -30,6 +30,9 @@ from datetime import datetime
 
 DIR_SCRIPT = os.path.dirname(os.path.abspath(__file__))
 RUTA_CONFIG = os.path.join(DIR_SCRIPT, 'stock_config.json')
+# Una EDP por línea: tiendas que usan la columna "Precio eventos outlet"
+# (columna AA de BASE PRECIOS) en vez del precio de su cadena.
+RUTA_TIENDAS_EVENTO = os.path.join(DIR_SCRIPT, 'tiendas_evento.txt')
 
 # Solo cuenta lo que está físicamente en la tienda (no EN TRANSITO, EN BODEGA
 # ni devoluciones), que es lo que el vendedor puede ofrecer hoy.
@@ -97,8 +100,9 @@ def leer_maestro_tiendas(ruta, hoja):
     """Maestro de tiendas (BASE.xlsx, hoja "DM+BASE DATOS TIENDA"):
     EDP = tienda_key del stock, GLOSA TIENDA = nombre que ve el usuario,
     cadena townhall = cadena (BATA, BUBBLE GUMMERS, WEINBRENNER, OUTLET...).
-    El canal de precios sale solo de la cadena townhall: OUTLET usa precios
-    Outlet; todas las demás, precios Estándar."""
+    El canal de precios sale de la cadena townhall: OUTLET usa precios
+    Outlet; todas las demás, precios Estándar (salvo las de tiendas_evento.txt,
+    ver leer_tiendas_evento)."""
     import openpyxl  # solo hace falta para el maestro: pip install openpyxl
     libro = openpyxl.load_workbook(ruta, read_only=True, data_only=True)
     filas = libro[hoja].iter_rows(values_only=True)
@@ -114,6 +118,15 @@ def leer_maestro_tiendas(ruta, hoja):
         maestro[edp] = {'nombre': nombre, 'cadena': cadena, 'tipo': 'outlet' if cadena == 'OUTLET' else 'estandar'}
     libro.close()
     return maestro
+
+
+def leer_tiendas_evento(ruta):
+    """EDP de tiendas evento outlet (una por línea). Estas tiendas usan el
+    canal 'evento' sin importar su cadena townhall."""
+    if not os.path.exists(ruta):
+        return set()
+    with open(ruta, encoding='utf-8') as fh:
+        return {l.strip().lstrip('0') or '0' for l in fh if l.strip()}
 
 
 def armar_filas(stock, maestro):
@@ -177,6 +190,12 @@ def main():
     if config.get('tiendas_xlsx'):
         maestro = leer_maestro_tiendas(config['tiendas_xlsx'], config.get('tiendas_hoja', 'DM+BASE DATOS TIENDA'))
         log(f'Maestro de tiendas: {len(maestro)} EDP')
+    evento = leer_tiendas_evento(RUTA_TIENDAS_EVENTO)
+    for edp in evento:
+        if edp in maestro:
+            maestro[edp]['tipo'] = 'evento'
+    if evento:
+        log(f'Tiendas evento outlet: {len(evento)} EDP ({len(evento - set(maestro))} no están en el maestro)')
     filas_stock, filas_meta = armar_filas(stock, maestro)
     if maestro:
         sin_maestro = sorted(t for t in stock if (t.lstrip('0') or '0') not in maestro)
