@@ -280,20 +280,16 @@ function aNumeroPrecio(v) {
 }
 
 // Categoría Alza/Baja/Sin cambios de un producto en un canal. Es el MISMO
-// criterio que usa la app en el detalle del producto (app.js, precioBaseCanal):
-//   - Estándar y Outlet: precio del canal vs Full Price Retail.
-//   - Evento Outlet: "Precio eventos outlet" vs precio estándar.
-// Más alto = SUBE, más bajo = BAJA, igual = MANTIENE. Sin alguno de los dos
-// precios no hay categoría (el producto no entra en esos listados).
+// criterio que usa la app (app.js, compararPrecioCanal):
+//   precio del canal (Tienda / Outlet / Evento Outlet) vs "Precio Antes";
+//   si el producto no tiene Precio Antes, vs Full Price Retail.
+// Más alto = SUBE, más bajo = BAJA, igual = MANTIENE. Sin precio de canal o
+// sin referencia no hay categoría (el producto no entra en esos listados).
+// El % de descuento que muestra la app se calcula aparte, siempre vs FPR.
 function categoriaPrecio(producto, tienda) {
-  var base, canal;
-  if (tienda === 'evento') {
-    base = aNumeroPrecio(producto.precioTienda);
-    canal = aNumeroPrecio(producto.precioEvento);
-  } else {
-    base = aNumeroPrecio(producto.fullPriceRetail);
-    canal = aNumeroPrecio(tienda === 'outlet' ? producto.precioOutlet : producto.precioTienda);
-  }
+  var campo = tienda === 'evento' ? 'precioEvento' : tienda === 'outlet' ? 'precioOutlet' : 'precioTienda';
+  var canal = aNumeroPrecio(producto[campo]);
+  var base = aNumeroPrecio(producto.precioAntes) || aNumeroPrecio(producto.fullPriceRetail);
   if (!base || !canal) return ''; // NaN o 0
   if (canal > base) return 'SUBE';
   if (canal < base) return 'BAJA';

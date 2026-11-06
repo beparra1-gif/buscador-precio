@@ -224,25 +224,25 @@ function precioCanal(item) {
     return item[CAMPO_PRECIO_CANAL[tiendaActual] || 'precioTienda'];
 }
 
-// Precio de referencia contra el que se mide el canal: Full Price Retail, salvo
-// en tiendas evento, que se comparan contra el precio estándar. Es el mismo
-// criterio que usa el backend (categoriaPrecio en Codigo.gs) para armar los
-// listados Alzas/Bajas/Sin Cambios, así lista, detalle y PDF siempre coinciden.
-function precioBaseCanal(item) {
-    return tiendaActual === 'evento' ? item.precioTienda : item.fullPriceRetail;
-}
-function labelPrecioBase() {
-    return tiendaActual === 'evento' ? 'Precio Estándar' : 'Precio Inicial';
+// En los tres canales se muestran FPR (Precio Inicial), Precio Antes y el
+// precio del canal. Hay dos comparaciones distintas:
+//   - tipo (alza / baja / igual): precio del canal vs Precio Antes; si no hay
+//     Precio Antes, vs FPR. Es el mismo criterio del backend (categoriaPrecio
+//     en Codigo.gs) que arma los listados Alzas/Bajas/Sin Cambios.
+//   - pct: % de descuento del precio del canal vs FPR (negativo si el canal
+//     está por sobre el FPR).
+function compararPrecioCanal(item) {
+    const canal = aNumero(precioCanal(item));
+    const fpr = aNumero(item.fullPriceRetail);
+    const base = aNumero(item.precioAntes) || fpr;
+    const pct = fpr && canal ? Math.round((fpr - canal) / fpr * 100) : 0;
+    let tipo = 'igual';
+    if (base && canal) tipo = canal > base ? 'alza' : canal < base ? 'baja' : 'igual';
+    return { tipo, pct };
 }
 
-// Alza / baja / igual del precio del canal respecto al precio base, con su %
-function compararPrecioCanal(item) {
-    const base = aNumero(precioBaseCanal(item));
-    const canal = aNumero(precioCanal(item));
-    if (!base || !canal) return { tipo: 'igual', pct: 0 };
-    if (canal > base) return { tipo: 'alza', pct: Math.round((canal - base) / base * 100) };
-    if (canal < base) return { tipo: 'baja', pct: Math.round((base - canal) / base * 100) };
-    return { tipo: 'igual', pct: 0 };
+function textoPct(pct) {
+    return pct > 0 ? `-${pct}%` : pct < 0 ? `+${-pct}%` : '';
 }
 
 // Normaliza la columna "Obsolescencia final" (50, 100 o vacío) a '50' | '100' | ''
@@ -432,10 +432,15 @@ function renderPreciosDetalle(data) {
     const comparacion = compararPrecioCanal(data);
     const precioActualTexto = formatearMoneda(precioCanal(data));
     const hayAntes = tieneValor(data.precioAntes);
+    const pctTexto = textoPct(comparacion.pct);
+    // Línea con el % vs FPR (descuento o recargo), si el canal difiere del FPR
+    const lineaPct = pctTexto
+        ? `<div style="text-align: center;"><div class="discount-badge">${comparacion.pct > 0 ? 'DESCUENTO' : 'SOBRE FPR'} ${pctTexto}</div></div>`
+        : '';
 
-    const estiloBase = comparacion.tipo === 'igual'
-        ? 'color: var(--text-muted);'
-        : 'color: var(--text-muted); text-decoration: line-through;';
+    const estiloBase = comparacion.pct !== 0
+        ? 'color: var(--text-muted); text-decoration: line-through;'
+        : 'color: var(--text-muted);';
     const estiloAntes = {
         alza: 'font-weight: 600; color: var(--text-main);',
         baja: 'color: var(--text-muted); text-decoration: line-through;',
@@ -445,8 +450,8 @@ function renderPreciosDetalle(data) {
     const referencias = `
         <div class="price-alza-box">
             <div class="price-alza-item">
-                <span class="price-label">${labelPrecioBase()}</span>
-                <span style="${estiloBase}">${formatearMoneda(precioBaseCanal(data))}</span>
+                <span class="price-label">Precio Inicial</span>
+                <span style="${estiloBase}">${formatearMoneda(data.fullPriceRetail)}</span>
             </div>
             ${hayAntes ? `
             <div class="price-alza-item">
@@ -458,17 +463,19 @@ function renderPreciosDetalle(data) {
     let cuerpo;
     if (comparacion.tipo === 'alza') {
         cuerpo = `
+            ${lineaPct}
             ${referencias}
-            <div class="price-label" style="color: var(--accent-red); font-weight: bold;">⚠️ Novedad: Alza de Precio +${comparacion.pct}%</div>
+            <div class="price-label" style="color: var(--accent-red); font-weight: bold;">⚠️ Novedad: Alza de Precio</div>
             <div class="price-actual alert-red">${precioActualTexto}</div>`;
     } else if (comparacion.tipo === 'baja') {
         cuerpo = `
-            <div style="text-align: center;"><div class="discount-badge">BAJA DE PRECIO -${comparacion.pct}%</div></div>
+            <div style="text-align: center;"><div class="discount-badge">BAJA DE PRECIO${pctTexto ? ' ' + pctTexto : ''}</div></div>
             ${referencias}
             <div class="price-label" style="margin-top: 10px;">Precio Actual</div>
             <div class="price-actual">${precioActualTexto}</div>`;
     } else {
         cuerpo = `
+            ${lineaPct}
             ${referencias}
             <div class="price-label">Precio Actual</div>
             <div class="price-actual" style="color: var(--primary);">${precioActualTexto}</div>
@@ -663,7 +670,7 @@ function aplicarFiltros() {
         let pasaDescuento = true;
         if (vDescuento !== 'ALL') {
             const comparacion = compararPrecioCanal(item);
-            const pct = comparacion.tipo === 'baja' ? comparacion.pct : 0;
+            const pct = Math.max(comparacion.pct, 0);
             pasaDescuento = obtenerRangoDescuento(pct) === vDescuento;
         }
 
@@ -810,12 +817,13 @@ function renderizarItems(items) {
         const urlFoto = `./fotos/${codigo}.jpg`;
         const urlFotoUpper = `./fotos/${codigo}.JPG`;
 
-        // El badge sale de la misma comparación que el detalle (canal vs FPR,
-        // o vs estándar en Evento), no de la categoría del listado.
+        // Badge: "Alza" si sube vs Precio Antes, más el % vs FPR si difiere.
         const comparacion = compararPrecioCanal(item);
+        const pctTexto = textoPct(comparacion.pct);
         let badgeHtml = '';
-        if (comparacion.tipo === 'baja') badgeHtml = `<div class="item-discount">-${comparacion.pct}%</div>`;
-        if (comparacion.tipo === 'alza') badgeHtml = `<div style="font-size: 11px; color: var(--accent-red); font-weight: 600;">⚠️ Alza +${comparacion.pct}%</div>`;
+        if (comparacion.tipo === 'alza') badgeHtml += `<div style="font-size: 11px; color: var(--accent-red); font-weight: 600;">⚠️ Alza</div>`;
+        if (pctTexto) badgeHtml += `<div class="item-discount">${pctTexto}</div>`;
+        if (badgeHtml) badgeHtml = `<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">${badgeHtml}</div>`;
 
         const nivelObs = obtenerNivelObsolescencia(item.obsolescencia);
         const claseObs = nivelObs ? ` obsolescencia-${nivelObs}` : '';
@@ -837,8 +845,8 @@ function renderizarItems(items) {
                 <div class="item-meta">${metaTexto}</div>
                 <div class="item-prices">
                     <div class="item-price-old">
-                        <span>${labelPrecioBase()}</span>
-                        ${formatearMoneda(precioBaseCanal(item))}
+                        <span>Precio Inicial</span>
+                        ${formatearMoneda(item.fullPriceRetail)}
                     </div>
                     ${tieneValor(item.precioAntes) ? `
                     <div class="item-price-old">
@@ -917,7 +925,7 @@ async function exportarListadoPDF() {
 
         const filas = itemsFiltrados.map((item, i) => {
             const comparacion = compararPrecioCanal(item);
-            const pctTexto = comparacion.tipo === 'alza' ? `+${comparacion.pct}%` : comparacion.tipo === 'baja' ? `-${comparacion.pct}%` : '--';
+            const pctTexto = textoPct(comparacion.pct) || '--';
             return {
                 foto: imagenes[i],
                 fila: [
@@ -926,7 +934,7 @@ async function exportarListadoPDF() {
                     item.marca || '--',
                     item.genero || '--',
                     item.tipoProducto || '--',
-                    formatearMoneda(precioBaseCanal(item)),
+                    formatearMoneda(item.fullPriceRetail),
                     formatearMoneda(item.precioAntes),
                     pctTexto,
                     formatearMoneda(precioCanal(item))
@@ -942,7 +950,7 @@ async function exportarListadoPDF() {
         doc.text(`${tituloLista} — ${LABEL_TIENDA[tiendaActual] || ''}${infoTiendaStock ? ' · ' + (infoTiendaStock.nombre || tiendaStockActual) : ''}`, 40, 30);
 
         doc.autoTable({
-            head: [['Foto', 'Código', 'Marca', 'Género', 'Tipo Producto', labelPrecioBase(), 'Precio Antes', '% Variación', 'Precio Final']],
+            head: [['Foto', 'Código', 'Marca', 'Género', 'Tipo Producto', 'Precio Inicial', 'Precio Antes', '% vs FPR', 'Precio Final']],
             body: filas.map(f => f.fila),
             startY: 45,
             styles: { fontSize: 8, cellPadding: 4, valign: 'middle', minCellHeight: 36 },

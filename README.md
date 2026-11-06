@@ -30,7 +30,7 @@ python -m http.server 8080
 La URL del Google Apps Script que sirve los datos está en `app.js` (constante `urlAPI`). El backend debe exponer:
 
 - `?action=buscarCodigo&codigo=XXXXXXX` → detalle de un producto (hoja BASE PRECIOS)
-- `?action=listarCategoria&categoria=SUBE|BAJA|MANTIENE|OBSOLESCENCIA&tienda=estandar|outlet` → listado por categoría. `OBSOLESCENCIA` filtra por la columna "Obsolescencia final" (= 50 o 100), ignora `tienda`. Las demás categorías se calculan comparando el precio del canal contra el **Full Price Retail** (en `evento`, contra el precio estándar) — ver "Criterio de alza/baja" más abajo.
+- `?action=listarCategoria&categoria=SUBE|BAJA|MANTIENE|OBSOLESCENCIA&tienda=estandar|outlet` → listado por categoría. `OBSOLESCENCIA` filtra por la columna "Obsolescencia final" (= 50 o 100), ignora `tienda`. Las demás categorías se calculan comparando el precio del canal contra el **Precio Antes** (o el Full Price Retail si no hay Precio Antes) — ver "Criterio de alza/baja" más abajo.
 
 El código fuente de ese backend vive en Google Apps Script (fuera de este repo), no aquí. [`apps-script/Codigo.gs`](apps-script/Codigo.gs) es una **copia de referencia** para tenerlo versionado — pero **no se despliega solo**; cada vez que lo cambies, tienes que copiarlo y pegarlo manualmente en el editor de Apps Script (Extensiones → Apps Script desde el Sheet) y volver a implementar (Implementar → Administrar implementaciones → ✏️ → Nueva versión → Implementar). Si editas el script directo en Apps Script, trae la copia de vuelta a este archivo para que no queden desincronizados.
 
@@ -50,7 +50,12 @@ La app trabaja con 2 canales de precio (el usuario elige uno al entrar: Tienda E
 
 ### Criterio de alza/baja
 
-Un solo criterio para listados, detalle, badges y PDF: **precio del canal vs Full Price Retail** (Estándar usa `precioTienda`, Outlet `precioOutlet`). Mayor = Alza, menor = Baja, igual = Sin Cambios; si falta alguno de los dos precios, el producto no entra en esos listados. En tiendas Evento Outlet la referencia es el precio estándar. El backend lo calcula en `categoriaPrecio` (`Codigo.gs`) y el frontend en `compararPrecioCanal` (`app.js`) — si se cambia uno, hay que cambiar el otro. Las columnas `OBSERVACION STANDAR` / `OBSERVACION OUTLET` ya no se usan.
+Los tres canales muestran **Precio Inicial (FPR)**, **Precio Antes** (columna W) y el precio del canal (Estándar `precioTienda`, Outlet `precioOutlet`, Evento `precioEvento`). Hay dos comparaciones:
+
+- **Etiqueta Alza / Baja / Sin Cambios** (listados, badge "Alza", detalle): precio del canal vs **Precio Antes**. Si el producto no tiene Precio Antes, se compara vs FPR. Si falta el precio del canal o la referencia, el producto no entra en esos listados.
+- **% de descuento** (badge, filtro de descuento, detalle, PDF): siempre precio del canal vs **FPR**. Puede convivir con una Alza (ej. FPR 49.990, Antes 35.990, Tienda 39.990 → Alza y -20%).
+
+El backend lo calcula en `categoriaPrecio` (`Codigo.gs`) y el frontend en `compararPrecioCanal` (`app.js`) — si se cambia uno, hay que cambiar el otro.
 
 ### Caché del backend
 
@@ -68,7 +73,7 @@ Al entrar, el usuario **digita el EDP de su tienda** (`view-0`) y la app arma to
 - El canal de precios es automático: cadena `OUTLET` (o "OUTLET" en el nombre) → precios Outlet; todas las demás → precio Estándar.
 - Alzas / Bajas / Sin Cambios / Obsolescencia muestran **solo los artículos con stock > 0 en esa tienda**, con una pastilla "Stock: N". El detalle de un código muestra el apartado "Stock en <tienda>" (o "Sin stock en esta tienda").
 - El cruce es `articulo` del archivo de stock contra la columna **Cod Art Numero** de BASE PRECIOS.
-- **Tiendas evento outlet**: las EDP listadas en [`scripts/tiendas_evento.txt`](scripts/tiendas_evento.txt) (una por línea) usan la columna **"Precio eventos outlet"** (AA de BASE PRECIOS) sin importar su cadena, y su observación se calcula comparando el precio evento contra el precio estándar (Nuevo Precio Final, o Precios Tiendas si viene vacío): mayor = Alza, menor = Baja, igual = Sin Cambios. En el detalle y los listados el % y la referencia ("Precio Estándar") también son contra el precio estándar. Para agregar o quitar una tienda basta editar ese archivo; la próxima carga diaria lo aplica. El resto de las tiendas usa el canal de su cadena townhall.
+- **Tiendas evento outlet**: las EDP listadas en [`scripts/tiendas_evento.txt`](scripts/tiendas_evento.txt) (una por línea) usan la columna **"Precio eventos outlet"** (AA de BASE PRECIOS) sin importar su cadena, con el mismo criterio de alza/baja que los demás canales. Para agregar o quitar una tienda basta editar ese archivo; la próxima carga diaria lo aplica. El resto de las tiendas usa el canal de su cadena townhall.
 - En los listados el código se muestra siempre con guion tras el 3er dígito (ej. 589-8773), con la pastilla de stock justo al lado; el filtro "Punta de Precio" aparece solo en tiendas Outlet.
 
 El stock sale de `Obsolescencia_Unido_<año>.txt` (SharePoint, ~1,7 GB, se regenera todos los días a las 8:00). Apps Script no puede leerlo, así que [`scripts/actualizar_stock.py`](scripts/actualizar_stock.py) lo procesa en el PC:
